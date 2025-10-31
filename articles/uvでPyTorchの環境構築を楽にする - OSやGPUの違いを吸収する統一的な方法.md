@@ -176,7 +176,7 @@ explicit = true
 
 2. `[tool.uv.sources]`
     `torch`パッケージをどこからダウンロードするかを、条件に応じて指定します。
-    - `extra = "cpu"` かつ `platform_system == 'macOS'` の場合 (`marker`で指定) は、`pytorch-cpu-mac` という名前のindexを使う。
+    - `extra = "cpu"` かつ `platform_system == 'Darwin'` の場合 (`marker`で指定) は、`pytorch-cpu-mac` という名前のindexを使う。
     - `extra = "cpu"` かつ macOS以外の場合 は、`pytorch-cpu` という名前のindexを使う。
     - `extra = "gpu"` の場合 は、`pytorch-gpu` という名前のindexを使う。
     このように、`extra`と`marker`を組み合わせることで、環境に応じたダウンロード先の切り替えを実現しています。

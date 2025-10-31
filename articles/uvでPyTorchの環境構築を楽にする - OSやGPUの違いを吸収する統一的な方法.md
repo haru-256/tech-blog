@@ -8,16 +8,16 @@ published: false
 
 3行まとめ
 
-- PyTorch環境構築で、OS（Windows/Mac/Linux）やGPU有無によって手順が異なり、チーム開発で統一が困難
+- PyTorch環境構築で、OS（Mac/Linux）やGPU有無によって手順が異なり、チーム開発で統一が困難
 - `uv`の`optional-dependencies`と`Makefile`を組み合わせ、環境差を自動判定してインストール先を切り替える仕組みを構築
-- `make install` 一発で、Windows/macOS/Linux、そしてCPU/GPUどんな環境でも最適なPyTorch（CPU/GPU版）が自動インストールされ、環境構築が簡単にできる
+- `make install` 一発で、macOS/Linux、そしてCPU/GPUどんな環境でも最適なPyTorch（CPU/GPU版）が自動インストールされ、環境構築が簡単にできる
 
 ## 1. はじめに：PyTorch環境構築のよくある悩み
 
 機械学習プロジェクト、特にPyTorchを使った開発では、環境構築でつまずくことが少なくありません。
 
-- 開発メンバーのOSがWindows, Mac, Linuxとバラバラで、手順が統一できない
-- 自分のPCはCPU版、サーバーはGPU版など、環境によってインストールするPyTorchが違う
+- 開発メンバーのOSがMac, Linuxとバラバラで、手順が統一できない
+- 自分の手元のPCはCPU版、実験サーバーはGPU版など、環境によってインストールするPyTorchが違う
 - 結果として、環境ごとの手順書が必要になり、セットアップに時間がかかったり、間違いが起きやすくなる
 
 この記事では、最近のデファクトスタンダードとされているPythonパッケージ管理ツール`uv`を使って、これらの悩みを解決する方法を紹介します。
@@ -35,7 +35,7 @@ published: false
 この記事の手順を実行するには、以下がインストールされている必要があります：
 
 - `uv` (≥ 0.5.3)
-- `make` コマンド（Linux/macOSは標準搭載、Windowsは`make`または`nmake`）
+- `make` コマンド（Linux/macOSは標準搭載）
 - （GPU環境の場合）NVIDIA CUDA Toolkit 12.6
 
 ### この記事が目指すゴール
@@ -44,7 +44,7 @@ published: false
 
 **所要時間**: 約15分（`uv`のインストールを除く）
 
-例えば、チーム開発において、「AさんのWindows/CPUマシン」と「BさんのLinux/GPUマシン」で、全く同じリポジトリとコマンドを使って、それぞれの環境に最適なPyTorch環境を構築できるようになります。
+例えば、チーム開発において、「AさんのmacOS/CPUマシン」と「BさんのLinux/GPUマシン」で、全く同じリポジトリとコマンドを使って、それぞれの環境に最適なPyTorch環境を構築できるようになります。
 
 ## 2. `uv`でPyTorchインストールを自動化する全体像
 
@@ -87,7 +87,7 @@ graph TD
 1. ユーザーが `make install` コマンドを実行します。
 2. **Makefile**が、実行環境にNVIDIA GPU (CUDA) があるかを判定します。
 3. 判定結果に応じて、`uv`に「CPU版 (`--extra=cpu`)」か「GPU版 (`--extra=gpu`)」かを指示します。
-4. `uv`が、現在のOS（Windows/Mac/Linux）と指示された種別を元に、`pyproject.toml`に設定された最適なPyTorchのダウンロード先（Index）を自動で選択します。
+4. `uv`が、現在のOS（Mac/Linux）と指示された種別を元に、`pyproject.toml`に設定された最適なPyTorchのダウンロード先（Index）を自動で選択します。
 5. 選択されたダウンロード先から、適切なPyTorchをインストールします。
 
 この仕組みの核心となるのが、`pyproject.toml`での依存関係の定義です。次のセクションから、具体的な設定方法を解説します。
@@ -100,13 +100,13 @@ graph TD
 
 ### `pipenv`でのパッケージ管理の課題
 
-PyTorchのように、CPU版とGPU版でパッケージのダウンロード先（index URL）が異なる場合、`pipenv`では大きな課題がありました。`pipenv`は、OSごとにダウンロード先を切り替える設定を`Pipfile`に記述することができないため、Linux用とWindows用で`Pipfile.lock`を別々に管理するなどの工夫が必要でした。これはリポジトリの複雑化を招き、管理コストの増大に繋がります。
+PyTorchのように、CPU版とGPU版でパッケージのダウンロード先（index URL）が異なる場合、`pipenv`では大きな課題がありました。`pipenv`は、OSごとにダウンロード先を切り替える設定を`Pipfile`に記述することができないため、Linux用とmacOS用で`Pipfile.lock`を別々に管理するなどの工夫が必要でした。これはリポジトリの複雑化を招き、管理コストの増大に繋がります。
 
 ### `uv`による解決策
 
 一方、`uv`は`pyproject.toml`の中で、`marker`（環境変数などに応じた条件指定）を用いて、OSや環境ごとにダウンロード先を動的に切り替える設定を記述できます。
 
-これにより、たった一つの`uv.lock`ファイルの中に、Windows/macOS/Linux、そしてCPU/GPUといった**全ての環境の依存関係情報を含めることが可能**になります。
+これにより、たった一つの`uv.lock`ファイルの中に、macOS/Linux、そしてCPU/GPUといった**全ての環境の依存関係情報を含めることが可能**になります。
 
 この機能が、本記事で`uv`を採用した理由です。
 
@@ -146,7 +146,7 @@ conflicts = [[{ extra = "cpu" }, { extra = "gpu" }]]
 torch = [
   # macOS (CPU版) はPyPIから取得
   { index = "pytorch-cpu-mac", extra = "cpu", marker = "platform_system == 'Darwin'" },
-  # Linux/Windows (CPU版) はPyTorch専用indexから取得
+  # Linux (CPU版) はPyTorch専用indexから取得
   { index = "pytorch-cpu", extra = "cpu", marker = "platform_system != 'Darwin'" },
   # GPU版は全OS共通で専用indexから取得
   { index = "pytorch-gpu", extra = "gpu" },
@@ -203,7 +203,7 @@ explicit = true
 uv lock
 ```
 
-このコマンドを実行すると、`uv`が`pyproject.toml`の設定を解析し、CPU/GPU、そしてWindows/macOS/Linuxの**すべての組み合わせ**に対応する依存関係情報を`uv.lock`というファイルに書き出してくれます。
+このコマンドを実行すると、`uv`が`pyproject.toml`の設定を解析し、CPU/GPU、そしてmacOS/Linuxの**すべての組み合わせ**に対応する依存関係情報を`uv.lock`というファイルに書き出してくれます。
 
 この`uv.lock`ファイルが、どんな環境でも同じインストール結果を保証するための「設計図」の役割を果たします。プロジェクトメンバーは、このファイルをGitリポジトリで共有することで、全員が同じバージョンのパッケージを利用できます。
 
@@ -259,7 +259,7 @@ uv lock
 ```
 
 2. **環境を構築する**
-    あとは、どの環境（Windows/CPU, Linux/GPUなど）でも、以下のコマンドを実行するだけです。
+    あとは、どの環境（macOS/CPU, Linux/GPUなど）でも、以下のコマンドを実行するだけです。
     実行すると、Makefileが自動的にGPUの有無を判別し、あなたの環境に最適なPyTorchをインストールしてくれます。
     新しいメンバーがチームに参加したときも、リポジトリをクローンして`make install`を実行してもらうだけで、すぐに開発を始められます。
 
@@ -298,7 +298,7 @@ uv run python -c "import torch; print(f'PyTorch {torch.__version__}'); print(f'C
 
 - **原因**: `Makefile`がGPU環境を正しく認識できていない。これは、`nvcc`コマンドへの`PATH`が通っていない場合に発生します。
 - **解決策**:
-    1. ターミナルで `which nvcc` (macOS/Linux) または `where nvcc` (Windows) を実行し、`nvcc`コマンドの場所を確認します。
+    1. ターミナルで `which nvcc` (macOS/Linux) を実行し、`nvcc`コマンドの場所を確認します。
     2. コマンドが見つからない場合は、CUDA Toolkitが正しくインストールされているか確認してください。
     3. インストールされているのに見つからない場合は、`.bashrc` や `.zshrc` などで `PATH` 環境変数の設定を見直してください。
 

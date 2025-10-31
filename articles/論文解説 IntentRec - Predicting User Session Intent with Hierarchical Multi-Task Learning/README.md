@@ -1,12 +1,14 @@
 ---
+title: "" # zenn: 記事のタイトル
+emoji: "😸" # zenn: アイキャッチとして使われる絵文字（1文字だけ）
+type: "tech" # zenn: tech: 技術記事 / idea: アイデア記事
+topics: [] # zenn: タグ。["markdown", "rust", "aws"]のように指定する
+published: true # zenn: 公開設定（falseにすると下書き）
 論文URL: https://arxiv.org/abs/2408.05353
 主な著者: Sejoon Oh, Moumita Bhattacharya, Yesu Feng, Sudarshan Lamkhede
 主な所属機関: Netflix
 論文公開日付: 2025-05-20
-tags:
-  - netflix
-  - next-item-recommendation
-  - multi-task-learning
+tags: ["netflix", "recommendation", "next-basket-recommendation", "intent", "user-modeling"]
 ---
 
 この記事は、Netflixが発表した推薦システムに関する手法 IntentRecについて解説します。

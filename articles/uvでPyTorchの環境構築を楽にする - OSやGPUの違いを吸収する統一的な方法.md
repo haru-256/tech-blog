@@ -53,7 +53,7 @@ published: false
 ```mermaid
 graph TD
     subgraph "ユーザー"
-        A[fa:fa-user-cog make install]
+        A[make install]
     end
 
     subgraph "Makefile"
@@ -71,12 +71,12 @@ graph TD
     end
 
     subgraph "Package Repository"
-        F --> I[(fa:fa-box-open PyTorch)];
+        F --> I[(PyTorch)];
         G --> I;
         H --> I;
     end
 
-    I --> J[fa:fa-download Install];
+    I --> J[Install];
 
     style A fill:#C7422A,stroke:#333,stroke-width:2px
     style J fill:#C7422A,stroke:#333,stroke-width:2px

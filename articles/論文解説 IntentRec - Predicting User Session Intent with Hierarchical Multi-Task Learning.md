@@ -1,9 +1,9 @@
 ---
-title: "" # zenn: 記事のタイトル
-emoji: "😸" # zenn: アイキャッチとして使われる絵文字（1文字だけ）
-type: "tech" # zenn: tech: 技術記事 / idea: アイデア記事
-topics: [] # zenn: タグ。["markdown", "rust", "aws"]のように指定する
-published: true # zenn: 公開設定（falseにすると下書き）
+title: "論文解説 IntentRec - Predicting User Session Intent with Hierarchical Multi-Task Learning" # zenn: 記事のタイトル
+emoji: "🤔"
+type: "tech"
+topics: []
+published: true
 論文URL: https://arxiv.org/abs/2408.05353
 主な著者: Sejoon Oh, Moumita Bhattacharya, Yesu Feng, Sudarshan Lamkhede
 主な所属機関: Netflix

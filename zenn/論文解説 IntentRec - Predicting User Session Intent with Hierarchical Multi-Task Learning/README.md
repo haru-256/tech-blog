@@ -182,7 +182,7 @@ $$
 
 ##### 階層的マルチタスク学習 (H-MTL)
 
-アイテム予測の損失関数は、以下のCross-Entropyの通り。ここで、インタラクション期間が長いpositionには大きな価値があるため、重み $d_k$ で重み付けし、重要しする。$y_k[i]$ はk番目のpositionのアイテムiのラベル(0/1)を表し、$p_k^{\text {item }}[i]$ はそのアイテムiの確率を表す。
+アイテム予測の損失関数は、以下のCross-Entropyの通り。ここで、インタラクション期間が長いpositionには大きな価値があるため、重み $d_k$ で重み付けし、重要視する。$y_k[i]$ はk番目のpositionのアイテムiのラベル(0/1)を表し、$p_k^{\text {item }}[i]$ はそのアイテムiの確率を表す。
 
 $$
 \mathcal{L}_{\mathrm{item}}=-\sum_{u \in \mathcal{B}} \sum_{k=1}^n d_k \sum_{i=1}^{|\mathcal{I}|} y_k^{\mathcal{I}}[i] \cdot \log \left(p_k^{\mathrm{item}}[i]\right)

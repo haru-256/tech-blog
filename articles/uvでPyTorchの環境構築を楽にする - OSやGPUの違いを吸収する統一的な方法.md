@@ -78,8 +78,8 @@ graph TD
 
     I --> J[fa:fa-download Install];
 
-    style A fill:#D5F5E3,stroke:#333,stroke-width:2px
-    style J fill:#D5F5E3,stroke:#333,stroke-width:2px
+    style A fill:#C7422A,stroke:#333,stroke-width:2px
+    style J fill:#C7422A,stroke:#333,stroke-width:2px
 ```
 
 `uv`と`Makefile`を組み合わせることで、以下の処理を自動化します。

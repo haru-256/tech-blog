@@ -216,7 +216,7 @@ uv lock
 ```makefile
 # 注意: Makefileではインデントにタブ文字を使用してください
 # `nvcc`コマンドが存在すれば1、しなければ0をHAS_CUDA変数に設定
-HAS_CUDA := $(shell command -v nvcc 2> /dev/null && echo 1 || echo 0)
+HAS_CUDA := $(shell command -v nvcc 2>&1 /dev/null && echo 1 || echo 0)
 
 .PHONY: install
 install: ## プロジェクトのセットアップ

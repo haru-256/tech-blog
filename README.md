@@ -25,7 +25,7 @@ Netflixが発表した推薦システムに関する手法IntentRecの解説記�
 
 **キーワード:** `Netflix` `推薦システム` `意図予測` `階層的マルチタスク学習` `機械学習`
 
-**記事リンク:** [論文解説 IntentRec](./articles/論文解説%20IntentRec%20-%20Predicting%20User%20Session%20Intent%20with%20Hierarchical%20Multi-Task%20Learning.md)
+**記事リンク:** [論文解説 IntentRec - Predicting User Session Intent with Hierarchical Multi-Task Learning](./articles/論文解説%20IntentRec%20-%20Predicting%20User%20Session%20Intent%20with%20Hierarchical%20Multi-Task%20Learning.md)
 
 ---
 

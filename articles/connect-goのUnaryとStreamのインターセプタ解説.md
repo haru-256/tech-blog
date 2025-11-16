@@ -55,16 +55,16 @@ connect-goは、gRPC (HTTP/2) と独自のConnectプロトコル (HTTP/1.1, HTTP
 
 ```go
 func (s *MyServer) GetUser(ctx context.Context, req *connect.Request[pb.GetUserRequest]) (*connect.Response[pb.GetUserResponse], error) {
-    s.logger.InfoContext(ctx, "Request Start", "method", "GetUser", "user_id", req.Msg.UserId) // \<-- 処理①
+    s.logger.InfoContext(ctx, "Request Start", "method", "GetUser", "user_id", req.Msg.UserId) // <-- 処理①
 
     // ... ビジネスロジック ...
 
-    if err \!= nil {
-        s.logger.ErrorContext(ctx, "Request Error", "method", "GetUser", "error", err) // \<-- 処理②
+    if err != nil {
+        s.logger.ErrorContext(ctx, "Request Error", "method", "GetUser", "error", err) // <-- 処理②
         return nil, err
     }
 
-    s.logger.InfoContext(ctx, "Request Success", "method", "GetUser") // \<-- 処理③
+    s.logger.InfoContext(ctx, "Request Success", "method", "GetUser") // <-- 処理③
     return res, nil
 }
 ```
@@ -127,6 +127,9 @@ flowchart TB
 package interceptor
 
 import (
+    "context"
+    "errors"
+    "io"
     "log/slog"
     "time"
 

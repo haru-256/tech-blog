@@ -245,14 +245,14 @@ func main() {
     )
 
     // 4. ハンドラの初期化時にオプションとして渡す
-    myServiceHandler := mypbv1connect.NewMyServiceHandler(
+    path, handler := mypbv1connect.NewMyServiceHandler(
         &myServiceImpl{}, // サービスの実装
         interceptorOption, // <-- ここで適用
     )
 
     // 5. サーバーの起動
     mux := http.NewServeMux()
-    mux.Handle(mypbv1connect.MyServicePath, myServiceHandler)
+    mux.Handle(path, handler)
     http.ListenAndServe(":8080", mux)
 }
 
@@ -290,6 +290,7 @@ func main() {
         http.DefaultClient,
         "http://localhost:8080", // 接続先サーバー
         connect.WithInterceptors(loggingInterceptor), // <-- ここで適用
+        connect.WithGRPC(), // gRPCプロトコルを使用する場合
     )
 
     // ... (clientを使ったRPC呼び出し)
@@ -328,7 +329,7 @@ func (i *ReqRespLogger) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
             code = connect.CodeOf(err)
         } else {
             // 成功
-            code = 0 // (connect.CodeOK相当)
+            code = connect.CodeOK
         }
 
         // リクエスト終了ログ

@@ -164,7 +164,7 @@ explicit = true
 
 [[tool.uv.index]]
 name = "pytorch-gpu"
-url = "https://download.pytorch.org/whl/cu126"
+url = "https://download.pytorch.org/whl/cu126" # 別のCUDAバージョンを使う場合は適宜修正が必要
 explicit = true
 ```
 

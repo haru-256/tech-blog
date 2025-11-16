@@ -708,23 +708,24 @@ func (c *loggingClientConn) Close() error {
 * **ログレベルの使い分け**
   ペイロード（リクエスト/レスポンス本体）のロギングは非常に詳細であり、ログの量を肥大化させます。上記の実装例のように、リクエストの開始/終了（Handler Stream Start / Finished）は INFO レベルで常に出力し、ペイロード（Send / Receive）は DEBUG レベルで出力するのが良いでしょう。これにより、本番環境ではログレベルを INFO に設定し、問題発生時のみ DEBUG に切り替えて詳細を調査できます。
 
-  ```go
-  // 本番環境: INFOレベル
-  logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-      Level: slog.LevelInfo, // Send/Receiveの詳細ログは出力されない
-  }))
-  
-  // デバッグ時: DEBUGレベル
-  logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-      Level: slog.LevelDebug, // すべてのログが出力される
-  }))
-  ```
+```go
+// 本番環境: INFOレベル
+logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+    Level: slog.LevelInfo, // Send/Receiveの詳細ログは出力されない
+}))
+
+// デバッグ時: DEBUGレベル
+logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+    Level: slog.LevelDebug, // すべてのログが出力される
+}))
+```
 
 * **PII（個人識別情報）のマスキング**
   ペイロードには、パスワード、メールアドレス、氏名などの機密情報（PII）が含まれる可能性があります。これらをそのままログに出力することは、セキュリティリスクや法令違反（GDPRなど）につながる可能性があります。
   対策として、connect-go-redact のようなペイロードをマスキングするインターセプタをロギングインターセプタと併用するか、ロギングインターセプタ自体にマスキングロジックを組み込むことを検討してください。
+
 * **パフォーマンスへの影響**
-  ペイロード（リクエスト/レスポンス本体）のロギングは非常に詳細であり、ログの量を肥大化させます。毎秒数万リクエストを処理するような高スループット環境で、すべてのリクエストのペイロードを DEBUG レベルでロギングすると、CPUリソースを消費します。本番環境での DEBUG レベルのロギングは、必要な期間のみ有効にすることを推奨します。
+  毎秒数万リクエストを処理するような高スループット環境で、すべてのリクエストのペイロードを DEBUG レベルでロギングすると、CPUリソースを消費します。本番環境での DEBUG レベルのロギングは、必要な期間のみ有効にすることを推奨します。
 
 ## 9. まとめ
 

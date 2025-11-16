@@ -212,7 +212,7 @@ func NewSimpleUnaryLogger(logger *slog.Logger) connect.UnaryInterceptorFunc {
 
 ### サーバー（ハンドラ）への適用
 
-サーバー側では、connect.New\[Service\]Handler のオプションとしてインターセプタを渡します。
+サーバー側では、connect.New<Service>Handler のオプションとしてインターセプタを渡します。
 
 ```go
 package main

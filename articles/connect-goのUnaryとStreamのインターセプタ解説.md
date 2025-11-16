@@ -687,25 +687,7 @@ func (c *loggingClientConn) Close() error {
 
 **注意**: `safeErrorString` は上記のUnaryセクションで定義したヘルパー関数と同じものです。
 
-## 7. Protobufメッセージのロギングについて
-
-この記事では、簡潔さのためにProtobufメッセージを `slog.Any("message", msg)` で直接ロギングしています。
-
-しかし、**protoc-gen-go v1.32.0以降のAPI_OPAQUEモードでは、この方法だとメッセージ内容が `{}` と表示される問題が発生します。**
-
-この問題の詳細と解決方法（protojsonの使用）については、別記事で詳しく解説しています：
-
-👉 **[connect-goでのProtobufメッセージのslogロギング - API_OPAQUE問題の解決](./connect-goでのProtobufメッセージのslogロギング%20-%20API_OPAQUE問題の解決.md)**
-
-上記の記事では、以下の内容をカバーしています：
-
-* API_OPAQUEモードが導入された背景と技術的な仕組み
-* なぜProtobufメッセージが`{}`と表示されるのか
-* `protojson.Marshal` と `json.RawMessage` を使った解決方法
-* `formatLogValue` ヘルパー関数の実装と使い方
-* パフォーマンスへの考慮とベストプラクティス
-
-## 8. 注意点とベストプラクティス
+## 7. 注意点とベストプラクティス
 
 インターセプタは強力ですが、本番環境での運用にはいくつかの注意点があります。
 
@@ -731,7 +713,7 @@ logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 * **パフォーマンスへの影響**
   毎秒数万リクエストを処理するような高スループット環境で、すべてのリクエストのペイロードを DEBUG レベルでロギングすると、CPUリソースを消費します。本番環境での DEBUG レベルのロギングは、必要な期間のみ有効にすることを推奨します。
 
-## 9. まとめ
+## 8. まとめ
 
 connect-goのインターセプタは、ロギング、認証、メトリクスといった横断的な関心事を分離するための強力な仕組みです。
 
@@ -743,12 +725,9 @@ connect-goのインターセプタは、ロギング、認証、メトリクス�
 
 このインターセプタを導入することで、アプリケーションの観測可能性は劇的に向上し、開発や運用がよりスムーズになると幸いです。
 
-**注意**: Protobufメッセージのロギングで問題が発生する場合は、[Protobufメッセージのslogロギング記事](./connect-goでのProtobufメッセージのslogロギング%20-%20API_OPAQUE問題の解決.md)を参照してください。
-
 ### 参考リンク
 
 * [connect-go 公式ドキュメント: Interceptors](https://connectrpc.com/docs/go/interceptors)
 * [Go 1.21 log/slog パッケージ](https://pkg.go.dev/log/slog)
 * [connect-go-redact: ペイロードマスキングライブラリ](https://github.com/pentops/connect-go-redact)
 * [log/slog のベストプラクティス](https://betterstack.com/community/guides/logging/logging-in-go/)
-* [connect-goでのProtobufメッセージのslogロギング - API_OPAQUE問題の解決](./connect-goでのProtobufメッセージのslogロギング%20-%20API_OPAQUE問題の解決.md) - Protobufメッセージのロギング詳細

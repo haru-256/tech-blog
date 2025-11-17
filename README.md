@@ -32,12 +32,36 @@ Netflixが発表した推薦システムに関する手法IntentRecの解説記�
 
 ---
 
-### 2. DDDにおけるuber-fxによるDI
+### 2. connect-goインターセプタ実装パターンガイド - Unary/Streaming対応
+
+**概要:**
+connect-goのインターセプタ実装パターンとライフサイクルを徹底解説した記事です。Unary RPCとStreaming RPCでは実装方法が根本的に異なり、Unaryは処理関数(`next`)をラップするのに対し、Streamingは接続オブジェクト(`conn`)をラップしてSend/Receiveメソッドをフックします。この記事では、ロギングを題材に、認証・メトリクス・レート制限など様々な横断的関心事に応用できる実装パターンを、クライアント側/サーバー側の違いを含めて詳しく解説します。
+
+**キーワード:** `Go` `gRPC` `connect-go` `Interceptor` `AOP` `ロギング` `認証` `アーキテクチャ`
+
+**記事リンク:** [connect-goインターセプタ実装パターンガイド - Unary/Streaming対応](./articles/connect-goインターセプタ実装パターンガイド.md)
+
+---
+
+### 3. DDDにおけるuber-fxによるDI
 
 **概要:**
 *(執筆中)*
 
 **記事リンク:** [DDDにおけるuber-fxによるDI](./articles/DDDにおけるuber-fxによるDI.md)
+
+---
+
+### 4. uvでPyTorchの環境構築を楽にする - OSやGPUの違いを吸収する統一的な方法
+
+**概要:**
+PyTorchの環境構築を、OS（macOS/Linux）やGPU有無の違いを吸収して「make install」一発で自動化する方法を解説。Rust製パッケージ管理ツール`uv`のoptional-dependenciesとMakefileを組み合わせ、どんな環境でも最適なPyTorch（CPU/GPU版）が自動インストールされる仕組みを紹介します。チーム開発での環境差異によるトラブルや手順の煩雑さを解消し、再現性の高いセットアップを実現します。
+
+**キーワード:** `Python` `PyTorch` `uv` `環境構築` `Makefile` `クロスプラットフォーム`
+
+**記事リンク:** [uvでPyTorchの環境構築を楽にする - OSやGPUの違いを吸収する統一的な方法](./articles/uvでPyTorchの環境構築を楽にする%20-%20OSやGPUの違いを吸収する統一的な方法.md)
+
+---
 
 ## テンプレートの解説
 

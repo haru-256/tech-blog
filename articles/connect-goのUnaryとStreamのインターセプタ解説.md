@@ -1,46 +1,53 @@
 ---
-title: connect-goのUnaryとStreamのインターセプタ解説
-emoji: 🚀
+title: connect-goインターセプタ実装パターン完全ガイド - Unary/Streaming対応
+emoji: 🔌
 type: tech
 topics:
   - go
   - grpc
   - connect-go
-  - slog
-  - observability
+  - interceptor
+  - architecture
 published: false
 tags: []
 ---
 
 ## 3行まとめ
 
-1. connect-goのインターセプタは、Unary/Streaming両方のRPCに対して共通のロギング・認証・メトリクス処理を適用できる強力な仕組み
-2. Unaryは`next`処理をラップ、Streamingはサーバー側でhandlerに渡す`conn`、クライアント側で`next`から取得する`conn`をラップして実装
-3. Streamingでは接続開始(🔵)・メッセージ送受信(🟢)・接続終了(🔴)の3つのタイミングでロギングが必要
+1. connect-goのインターセプタは`connect.Interceptor`インターフェースの3メソッド(WrapUnary/WrapStreamingClient/WrapStreamingHandler)を実装することで、認証・ロギング・メトリクスなど横断的関心事を一元管理できる
+2. **Unary RPCは`next`(処理関数)をラップ**するのに対し、**Streaming RPCは`conn`(接続オブジェクト)をラップ**してSend/Receiveメソッドをフックする点が根本的に異なる
+3. クライアント側とサーバー側でStreamingの実装パターンが異なる:サーバーは`conn`を受け取ってラップ、クライアントは`next`から`conn`を生成してラップして返却
 
 ## 1. はじめに
 
 connect-goは、gRPC (HTTP/2) と独自のConnectプロトコル (HTTP/1.1, HTTP/2) の両方をサポートする、非常に強力なRPCフレームワークです。Webブラウザとバックエンドサービス間でシームレスな型安全通信を実現し、開発体験を大幅に向上させます。
 
-多くのWebフレームワークが「ミドルウェア」という概念を持つのと同様に、connect-goは「インターセプタ (Interceptor)」という仕組みを提供します。これは、実際のリクエスト処理の前後に共通の処理（認証、バリデーション、ロギング、メトリクス収集など）を挟み込むためのAOP（アスペクト指向プログラミング）的な機能です。
+多くのWebフレームワークが「ミドルウェア」という概念を持つのと同様に、connect-goは「インターセプタ (Interceptor)」という仕組みを提供します。これは、実際のリクエスト処理の前後に共通の処理を挟み込むためのAOP(アスペクト指向プログラミング)的な機能です。
 
-なかでも **リクエストロギング** は、システムの観測可能性 (Observability) において最も重要な基盤の一つです。開発中のデバッグはもちろん、本番環境で「何が起こったのか」を追跡するために不可欠です。
+しかし、Unary RPCとStreaming RPCでは、インターセプタの実装パターンが根本的に異なります。よくインターネットにある情報はUnary RPCに偏っており、Streaming RPCの扱い方については十分に解説されておらず、私自身も最初は混乱しました。
 
 ### この記事で得られること
 
-この記事では、connect-goのインターセプタ機能を使い、Go 1.21+ 標準の構造化ロギングライブラリ log/slog をベースにした、実践的なリクエストロギングインターセプタの実装方法を徹底的に解説します。
+この記事では、connect-goのインターセプタの**実装パターンとライフサイクル**を、実践的なコード例を通じて徹底的に解説します。
 
-具体的には、以下のすべてをカバーするReqRespLoggerインターセプタを実装します。
+具体的には、以下を学べます:
 
-1. **Unary RPC**（1対1リクエスト）の開始ログと終了ログ
-2. **Streaming RPC**（双方向ストリーミング）の接続開始、送受信、終了のライフサイクル全体のロギング
-3. slog を使った構造化されたログ出力
+1. connect.Interceptorインターフェースの3メソッドの役割と実装方法
+2. Unary RPCとStreaming RPCの実装パターンの違い(処理ラップ vs 接続ラップ)
+3. サーバー側とクライアント側のStreaming実装の違い
+4. 実装例として、ロギング・認証・メトリクスなど様々な用途への応用方法
+
+### この記事が解決する課題
+
+connect-goの公式ドキュメントはインターセプタの基本は説明していますが、Unary/Streamingの実装パターンの違いやクライアント/サーバーでのStreamingの扱い方の違いについて、体系的にまとめられた日本語の情報が少ないのが現状です。
+
+この記事では、ロギングインターセプタを実装しつつ、ライフサイクル全体(開始・処理・終了)を可視化して、インターセプタの動作を理解します。
 
 ### 対象読者
 
-* connect-goで共通のロギング処理を実装したい人
-* slog を使ってProtobufメッセージを正しく構造化ログとして出力したい人
+* connect-goでインターセプタを実装したいが、どう書けばいいか分からない人
 * UnaryとStreaming、両方のインターセプタの実装方法の違いを理解したい人
+* 認証、メトリクス、ロギングなど横断的関心事を一元管理したい人
 
 ### 前提環境
 
@@ -48,51 +55,101 @@ connect-goは、gRPC (HTTP/2) と独自のConnectプロトコル (HTTP/1.1, HTTP
 * connect-go v1.x
 * connect-goの基本的な使用経験
 
-## 2. インターセプタによるロギングの必要性
+### サンプルコード
 
-なぜインターセプタが必要なのでしょうか？ 各RPCハンドラ（メソッド）の先頭と末尾にロギング処理を直接記述することも可能です。
+この記事で解説する実装は、以下のリポジトリで完全なサンプルコードとして公開しています。実際に動かしてログ出力を確認できます：
 
-// 良くない例：ハンドラにロギングが散在する
+[haru-256/blog-connect-go-interceptor](https://github.com/haru-256/blog-connect-go-interceptor)
+
+記事を読みながらコードを確認したい方や、実際のログの流れを見たい方は、ぜひリポジトリもご活用ください。
+
+## 2. インターセプタで実装できる横断的関心事
+
+インターセプタがなくとも、各RPCハンドラ(メソッド)に直接処理を記述することも可能です。
 
 ```go
+// 良くない例:ハンドラに横断的関心事が散在する
 func (s *MyServer) GetUser(ctx context.Context, req *connect.Request[pb.GetUserRequest]) (*connect.Response[pb.GetUserResponse], error) {
-    s.logger.InfoContext(ctx, "Request Start", "method", "GetUser", "user_id", req.Msg.UserId) // <-- 処理①
-
-    // ... ビジネスロジック ...
-
-    if err != nil {
-        s.logger.ErrorContext(ctx, "Request Error", "method", "GetUser", "error", err) // <-- 処理②
-        return nil, err
+    // 認証チェック
+    if !s.auth.Verify(ctx) {
+        return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unauthorized"))
+    }
+    
+    // ロギング
+    s.logger.InfoContext(ctx, "Request Start", "method", "GetUser")
+    start := time.Now()
+    
+    // バリデーション
+    if req.Msg.UserId == "" {
+        return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("user_id required"))
     }
 
-    s.logger.InfoContext(ctx, "Request Success", "method", "GetUser") // <-- 処理③
+    // ... 本来のビジネスロジック ...
+
+    // メトリクス記録
+    s.metrics.RecordDuration("GetUser", time.Since(start))
+    s.logger.InfoContext(ctx, "Request Success")
     return res, nil
 }
 ```
 
-このアプローチには多くの問題があります。
+しかし、このアプローチには多くの問題があります:
 
-* **重複 (Don't Repeat Yourself違反)**: すべてのハンドラに同様のコードを書く必要があり、冗長です。
-* **漏れ**: 新しいハンドラを追加した際に、ロギング処理を忘れる可能性があります。
-* **ビジネスロジックの汚染**: ハンドラの本来の責務である「ビジネスロジック」と、「ロギング」という横断的な関心事が混在し、可読性とメンテナンス性が低下します。
+* **重複 (DRY違反)**: すべてのハンドラに同じコードを書く必要がある
+* **漏れのリスク**: 新しいハンドラで認証チェックを忘れるなど、致命的なバグの原因に
+* **責務の混在**: ビジネスロジックと横断的関心事が混在し、可読性が低下
+* **変更の影響範囲**: ロギングフォーマットを変えたい場合、全ハンドラを修正する必要がある
 
-インターセプタは、これらの「横断的な関心事 (Cross-Cutting Concerns)」をビジネスロジックから完全に分離し、アプリケーションの入り口で一元的に処理することを可能にします。
+インターセプタは、これらの横断的な関心事をビジネスロジックから完全に分離します。
+
+### インターセプタで実装できる機能例
 
 ```mermaid
 flowchart LR
-    A[リクエスト] --> B[インターセプタ: 開始ログ]
-    B --> C[ビジネスロジック]
-    C --> D[インターセプタ: 終了ログ]
-    D --> E[レスポンス]
-    style B fill:#e1f5ff
-    style D fill:#e1f5ff
+    A[リクエスト] --> B[認証インターセプタ]
+    B --> C[ロギングインターセプタ]
+    C --> D[メトリクスインターセプタ]
+    D --> E[ビジネスロジック]
+    E --> F[メトリクスインターセプタ]
+    F --> G[ロギングインターセプタ]
+    G --> H[レスポンス]
+    style B fill:#ffe6e6
+    style C fill:#e6f3ff
+    style D fill:#e6ffe6
+    style F fill:#e6ffe6
+    style G fill:#e6f3ff
 ```
 
-この記事で作成する ReqRespLogger は、connect.Interceptor インターフェースを実装した構造体として設計します。
+1. **認証・認可**: JWTトークン検証、権限チェック
+2. **ロギング**: リクエスト/レスポンスの記録、エラートラッキング
+3. **メトリクス**: レイテンシ測定、リクエスト数カウント、エラー率計測
+4. **バリデーション**: 共通的な入力検証ルール
+5. **レート制限**: API呼び出し頻度の制御
+6. **トレーシング**: 分散トレーシング(OpenTelemetry連携)
+7. **エラーハンドリング**: エラーコードの統一、リトライ処理
+
+### この記事での実装例:ロギングインターセプタ
+
+この記事では、ロギングを題材としてインターセプタの実装パターンを解説します。
+ライフサイクル全体が可視化しやすいためロギングを選びました。
+
+ただし、この実装パターンは認証やメトリクスにもそのまま応用できます。記事の後半で、他の用途への応用例も紹介します。
+
+```go
+// この記事で実装するインターセプタの構造
+type ReqRespLogger struct {
+    logger *slog.Logger
+}
+
+// connect.Interceptor インターフェースを実装
+func (i *ReqRespLogger) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc { /* ... */ }
+func (i *ReqRespLogger) WrapStreamingClient(next connect.StreamingClientFunc) connect.StreamingClientFunc { /* ... */ }
+func (i *ReqRespLogger) WrapStreamingHandler(next connect.StreamingHandlerFunc) connect.StreamingHandlerFunc { /* ... */ }
+```
 
 ## 3. 基本的な実装：ReqRespLoggerの準備
 
-まず、インターセプタの全体像を定義します。connect-goのインターセプタは、3つのメソッドを持つ connect.Interceptor インターフェースを実装する必要があります。
+まず、インターセプタの全体像を解説します。connect-goのインターセプタは、3つのメソッドを持つ connect.Interceptor インターフェースを実装する必要があります。
 
 ```go
 // connect.Interceptor インターフェース定義
@@ -207,7 +264,6 @@ func NewSimpleUnaryLogger(logger *slog.Logger) connect.UnaryInterceptorFunc {
 ```
 
 このように、Unary RPCのみを扱う場合は connect.UnaryInterceptorFunc を使うと非常に簡潔に記述できます。
-
 この記事では、UnaryとStreamingの両方に対応するため、connect.Interceptor を構造体で実装する方法で解説を続けます。
 
 ## 4. インターセプタの適用方法
@@ -289,9 +345,20 @@ func main() {
     logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
     loggingInterceptor := interceptor.NewReqRespLogger(logger)
 
+    // HTTP/2クライアントの設定（gRPCプロトコル使用時に必要）
+    httpClient := &http.Client{
+        Transport: &http2.Transport{
+            AllowHTTP: true, // h2c (HTTP/2 Cleartext) を許可
+            DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
+                // TLSなしで接続
+                return net.Dial(network, addr)
+            },
+        },
+    }
+
     // 1. クライアントの初期化時にオプションとして渡す
     client := mypbv1connect.NewMyServiceClient(
-        http.DefaultClient,
+        httpClient, // HTTP/2対応のクライアントを使用
         "http://localhost:8080", // 接続先サーバー
         connect.WithInterceptors(loggingInterceptor), // <-- ここで適用
         connect.WithGRPC(), // gRPCプロトコルを使用する場合
@@ -345,14 +412,10 @@ func (i *ReqRespLogger) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 
 // logUnaryStart はUnaryリクエストの開始をロギングします。
 func (i *ReqRespLogger) logUnaryStart(ctx context.Context, req connect.AnyRequest) {
-    // (connect.StreamTypeUnary はサーバー/クライアント共通の定数)
-    // (i.logger.Log は logger.go の実装に合わせたヘルパー)
-    i.logger.InfoContext(ctx, "Unary Request Start",
+    // DEBUGレベルでリクエストペイロードをロギング
+    i.logger.DebugContext(ctx, "🔵 Unary Request Start",
         slog.String("procedure", req.Spec().Procedure),
-        slog.String("user_agent", req.Header().Get("User-Agent")),
-        slog.String("peer_addr", req.Peer().Addr),
-        // DEBUGレベルでリクエストペイロードをロギング
-        slog.Any("request", req.Any()),
+        slog.Any("request_body", req.Any()),
     )
 }
 
@@ -365,35 +428,33 @@ func (i *ReqRespLogger) logUnaryEnd(
     code connect.Code,
     duration time.Duration,
 ) {
-    // エラーレベルを選択
-    logLevel := slog.LevelInfo
     if err != nil {
-        logLevel = slog.LevelError
-    }
+        // エラーの場合はERRORレベルでログ出力
+        i.logger.ErrorContext(ctx, "🔴 Unary Request Finished (error)",
+            slog.String("procedure", req.Spec().Procedure),
+            slog.Duration("duration", duration),
+            slog.String("error", err.Error()),
+        )
+    } else {
+        // 成功時はINFOレベルで出力
+        i.logger.InfoContext(ctx, "🔴 Unary Request Finished",
+            slog.String("procedure", req.Spec().Procedure),
+            slog.Duration("duration", duration),
+        )
 
-    i.logger.Log(ctx, logLevel, "Unary Request End",
-        slog.String("procedure", req.Spec().Procedure),
-        slog.Duration("duration", duration),
-        slog.String("code", code.String()),
-        slog.String("error", safeErrorString(err)),
         // DEBUGレベルでレスポンスペイロードをロギング
-        slog.Any("response", res.Any()),
-    )
-}
-```
-
-**注意**: `safeErrorString` はエラーがnilの場合に空文字列を返すヘルパー関数です。
-
-```go
-func safeErrorString(err error) string {
-    if err != nil {
-        return err.Error()
+        i.logger.DebugContext(ctx, "🔴 Unary Request Finished",
+            slog.String("procedure", req.Spec().Procedure),
+            slog.Duration("duration", duration),
+            slog.Any("response_body", res.Any()),
+        )
     }
-    return ""
 }
 ```
 
-WrapUnary の実装はシンプルです。next の前後で開始ログと終了ログを呼び出しています。ログには procedure（RPCメソッド名）や処理時間（duration）、エラー情報（code, error）を含めることで、どの処理にどれだけ時間がかかり、どういう結果になったのかが一目でわかります。
+WrapUnary の実装はシンプルです。next の前後で開始ログと終了ログを呼び出しています。ログには procedure（RPCメソッド名）や処理時間（duration）、エラー情報を含めることで、どの処理にどれだけ時間がかかり、どういう結果になったのかが一目でわかります。
+
+**絵文字マーカー**: ログメッセージには視覚的な識別のために絵文字を使用しています（🔵: 開始、🟢: 送受信、🔴: 終了）。これらはログ分析時に便利ですが、本番環境では削除することも可能です。
 
 ## 6. Streaming RPCのロギング（WrapStreamingHandler / WrapStreamingClient）
 
@@ -419,7 +480,30 @@ flowchart TB
 
 Streaming RPCのロギングは、サーバーサイド（ハンドラ）とクライアントサイドで実装方法が異なります。以下、それぞれの視点から詳しく解説します。
 
-### 6-1. サーバーサイド（WrapStreamingHandler）の実装
+### 6-1. Streamingの3つのタイプ
+
+Streaming RPCには3つのタイプがあります：
+
+1. **双方向ストリーミング (Bidirectional Streaming)**
+   * クライアントとサーバーの両方が複数のメッセージを送受信
+   * `Send()`と`Receive()`を両方とも複数回呼び出し可能
+   * 例：チャットアプリケーション
+
+2. **クライアントストリーミング (Client Streaming)**
+   * クライアントが複数のメッセージを送信し、サーバーが1つのレスポンスを返す
+   * クライアント側：`Send()`を複数回 + `CloseAndReceive()`で最終レスポンスを受信
+   * サーバー側：`Receive()`を複数回 + 最後に1回`Send()`
+   * 例：ファイルアップロード
+
+3. **サーバーストリーミング (Server Streaming)**
+   * クライアントが1つのリクエストを送信し、サーバーが複数のレスポンスを返す
+   * クライアント側：1回`Send()` + `CloseRequest()` + `Receive()`を複数回
+   * サーバー側：1回`Receive()` + `Send()`を複数回
+   * 例：大量データの取得、リアルタイム通知
+
+**重要**: この記事で実装するインターセプタは、すべてのストリーミングタイプに対して共通で動作します。`Send()`/`Receive()`/`CloseRequest()`/`CloseResponse()`/`CloseAndReceive()`のいずれが呼ばれても適切にロギングされます。
+
+### 6-2. サーバーサイド（WrapStreamingHandler）の実装
 
 サーバー側（ハンドラ側）では、connect.StreamingHandlerConn（接続オブジェクト）がインターセプタに渡されます。私たちはこの conn を、ロギング機能を持つカスタムconnでラップし、next（ハンドラのビジネスロジック）に渡します。
 
@@ -474,18 +558,17 @@ func (i *ReqRespLogger) WrapStreamingHandler(next connect.StreamingHandlerFunc) 
 
         // 🔵 タイミング1: 接続確立時（1回のみ）
         // クライアントからの接続が確立された直後に実行されます
-        i.logger.InfoContext(ctx, "Handler Stream Start",
+        i.logger.InfoContext(ctx, "🔵 Handler Stream Start",
             slog.String("procedure", conn.Spec().Procedure),
-            slog.String("peer_addr", conn.Peer().Addr),
         )
 
         // 🔴 タイミング3: 接続終了時（1回のみ）
         // defer により、next()が完了（正常終了/エラー問わず）した後に実行されます
         defer func() {
             duration := time.Since(start)
-            i.logger.InfoContext(ctx, "Handler Stream Finished",
-             slog.Duration("duration", duration),
-             slog.String("procedure", conn.Spec().Procedure),
+            i.logger.InfoContext(ctx, "🔴 Handler Stream Finished",
+                slog.String("procedure", conn.Spec().Procedure),
+                slog.Duration("duration", duration),
             )
         }()
 
@@ -494,6 +577,7 @@ func (i *ReqRespLogger) WrapStreamingHandler(next connect.StreamingHandlerFunc) 
         wrappedConn := &loggingHandlerConn{
             StreamingHandlerConn: conn,
             logger:               i.logger,
+            ctx:                  ctx,
         }
 
         // ラップした接続(wrappedConn)を使って本体処理(next)を実行
@@ -506,6 +590,7 @@ func (i *ReqRespLogger) WrapStreamingHandler(next connect.StreamingHandlerFunc) 
 type loggingHandlerConn struct {
     connect.StreamingHandlerConn // 元のconnを埋め込む
     logger *slog.Logger
+    ctx    context.Context // コンテキストをフィールドとして保持
 }
 
 // Receive メソッドをオーバーライド
@@ -515,14 +600,14 @@ func (c *loggingHandlerConn) Receive(msg any) error {
 
     // Streamの終端(io.EOF)はエラーではないため、区別する
     if err != nil && !errors.Is(err, io.EOF) {
-        // c.Context() は埋め込まれた StreamingHandlerConn から継承されたメソッドで、
-        // 現在のリクエストのコンテキストを返します
-        c.logger.WarnContext(c.Context(), "Handler Stream Receive Error",
+        c.logger.ErrorContext(c.ctx, "🟢 Handler Stream Receive (error)",
+            slog.String("procedure", c.Spec().Procedure),
             slog.String("error", err.Error()),
         )
     } else if err == nil {
         // 受信成功: DEBUGレベルでメッセージ内容を記録
-        c.logger.DebugContext(c.Context(), "Handler Stream Receive",
+        c.logger.DebugContext(c.ctx, "🟢 Handler Stream Receive",
+            slog.String("procedure", c.Spec().Procedure),
             slog.Any("message", msg),
         )
     }
@@ -536,12 +621,14 @@ func (c *loggingHandlerConn) Send(msg any) error {
     err := c.StreamingHandlerConn.Send(msg)
 
     if err != nil {
-        c.logger.WarnContext(c.Context(), "Handler Stream Send Error",
+        c.logger.ErrorContext(c.ctx, "🟢 Handler Stream Send (error)",
+            slog.String("procedure", c.Spec().Procedure),
             slog.String("error", err.Error()),
         )
     } else {
         // 送信成功: DEBUGレベルでメッセージ内容を記録
-        c.logger.DebugContext(c.Context(), "Handler Stream Send",
+        c.logger.DebugContext(c.ctx, "🟢 Handler Stream Send",
+            slog.String("procedure", c.Spec().Procedure),
             slog.Any("message", msg),
         )
     }
@@ -551,7 +638,7 @@ func (c *loggingHandlerConn) Send(msg any) error {
 
 ポイントは loggingHandlerConn 構造体です。connect.StreamingHandlerConn を埋め込み、Receive と Send メソッドだけをオーバーライド（上書き）しています。これにより、next 処理が wrappedConn.Receive() を呼ぶと、我々のロギング処理を経由してから、本来の StreamingHandlerConn.Receive() が呼ばれるようになります。
 
-### 6-2. クライアントサイド（WrapStreamingClient）の実装
+### 6-3. クライアントサイド（WrapStreamingClient）の実装
 
 クライアント側も同様に「接続（Conn）」をラップしますが、next の役割がハンドラ側とは異なります。
 
@@ -578,8 +665,10 @@ sequenceDiagram
         Client Interceptor->>Client Interceptor: 🟢 Receive()呼出
         Client Interceptor->>Client Logic: データ返却
     end
-    Client Logic->>Client Interceptor: Close()
-    Client Interceptor->>Client Interceptor: 🔴 Client Stream Closed
+    Client Logic->>Client Interceptor: CloseRequest()
+    Client Interceptor->>Client Interceptor: 🔴 Client Stream Request Closed
+    Client Logic->>Client Interceptor: CloseResponse()
+    Client Interceptor->>Client Interceptor: 🔴 Client Stream Response Closed
     Client Interceptor->>Server: 接続終了
 ```
 
@@ -587,7 +676,7 @@ sequenceDiagram
 
 * 🔵 **Client Stream Start**: サーバーへの接続確立時（1回のみ）
 * 🟢 **Client Stream Send/Receive**: クライアントがメッセージを送受信するたび（0回以上）
-* 🔴 **Client Stream Closed**: クライアントがClose()を呼び出した時（1回のみ）
+* 🔴 **Client Stream Request/Response Closed**: クライアントがCloseRequest()/CloseResponse()を呼び出した時（各1回ずつ）
 
 **実際のログ出力例（クライアントサイド）：**
 
@@ -599,7 +688,8 @@ sequenceDiagram
 {"level":"DEBUG","msg":"Client Stream Receive","message":{"reply":"fine"}}    // 🟢
 {"level":"DEBUG","msg":"Client Stream Send","message":{"text":"bye"}}         // 🟢
 {"level":"DEBUG","msg":"Client Stream Receive","message":{"reply":"goodbye"}} // 🟢
-{"level":"INFO","msg":"Client Stream Closed","procedure":"/myservice/Chat"}     // 🔴
+{"level":"INFO","msg":"Client Stream Request Closed","procedure":"/myservice/Chat"}  // 🔴
+{"level":"INFO","msg":"Client Stream Response Closed","procedure":"/myservice/Chat"} // 🔴
 ```
 
 ```go
@@ -612,15 +702,16 @@ func (i *ReqRespLogger) WrapStreamingClient(next connect.StreamingClientFunc) co
 
         // 🔵 タイミング1: 接続確立時（1回のみ）
         // サーバーへの接続が確立された直後に実行されます
-        i.logger.InfoContext(ctx, "Client Stream Start",
+        i.logger.InfoContext(ctx, "🔵 Client Stream Start",
             slog.String("procedure", spec.Procedure),
         )
 
         // 2. 取得した conn をラップして返す
-        // これにより、Send/Receive/Closeが呼ばれるたびにログが出力されます
+        // これにより、Send/Receive/CloseRequest/CloseResponseが呼ばれるたびにログが出力されます
         return &loggingClientConn{
             StreamingClientConn: conn, // 元のconnを埋め込む
             logger:              i.logger,
+            ctx:                 ctx,
             spec:                spec,
         }
     }
@@ -630,6 +721,7 @@ func (i *ReqRespLogger) WrapStreamingClient(next connect.StreamingClientFunc) co
 type loggingClientConn struct {
     connect.StreamingClientConn // 元のconnを埋め込む
     logger *slog.Logger
+    ctx    context.Context // コンテキストをフィールドとして保持
     spec   connect.Spec
 }
 
@@ -638,13 +730,13 @@ type loggingClientConn struct {
 func (c *loggingClientConn) Send(msg any) error {
     err := c.StreamingClientConn.Send(msg)
     if err != nil {
-        c.logger.WarnContext(c.Context(), "Client Stream Send Error",
+        c.logger.ErrorContext(c.ctx, "🟢 Client Stream Send (error)",
             slog.String("procedure", c.spec.Procedure),
             slog.String("error", err.Error()),
         )
     } else {
         // 送信成功: DEBUGレベルでメッセージ内容を記録
-        c.logger.DebugContext(c.Context(), "Client Stream Send",
+        c.logger.DebugContext(c.ctx, "🟢 Client Stream Send",
             slog.String("procedure", c.spec.Procedure),
             slog.Any("message", msg),
         )
@@ -657,13 +749,13 @@ func (c *loggingClientConn) Send(msg any) error {
 func (c *loggingClientConn) Receive(msg any) error {
     err := c.StreamingClientConn.Receive(msg)
     if err != nil && !errors.Is(err, io.EOF) {
-        c.logger.WarnContext(c.Context(), "Client Stream Receive Error",
+        c.logger.ErrorContext(c.ctx, "🟢 Client Stream Receive (error)",
             slog.String("procedure", c.spec.Procedure),
             slog.String("error", err.Error()),
         )
     } else if err == nil {
         // 受信成功: DEBUGレベルでメッセージ内容を記録
-        c.logger.DebugContext(c.Context(), "Client Stream Receive",
+        c.logger.DebugContext(c.ctx, "🟢 Client Stream Receive",
             slog.String("procedure", c.spec.Procedure),
             slog.Any("message", msg),
         )
@@ -672,51 +764,89 @@ func (c *loggingClientConn) Receive(msg any) error {
     return err
 }
 
-// Close メソッドをオーバーライド (クライアント側特有)
-// 🔴 タイミング3: クライアントが接続を明示的にクローズする時に実行（1回のみ）
-func (c *loggingClientConn) Close() error {
-    err := c.StreamingClientConn.Close()
+// CloseRequest メソッドをオーバーライド (クライアント側特有)
+// 🔴 タイミング3a: クライアントが送信を終了する時に実行（1回のみ）
+func (c *loggingClientConn) CloseRequest() error {
+    err := c.StreamingClientConn.CloseRequest()
 
-    // クライアントが明示的に Close したタイミングをロギング
-    c.logger.InfoContext(c.Context(), "Client Stream Closed",
-        slog.String("procedure", c.spec.Procedure),
-        slog.String("error", safeErrorString(err)),
-    )
+    if err != nil {
+        c.logger.ErrorContext(c.ctx, "🔴 Client Stream Request Close (error)",
+            slog.String("procedure", c.spec.Procedure),
+            slog.String("error", err.Error()),
+        )
+    } else {
+        // クライアントが送信を終了したタイミングをロギング
+        c.logger.InfoContext(c.ctx, "🔴 Client Stream Request Close",
+            slog.String("procedure", c.spec.Procedure),
+        )
+    }
+    return err
+}
+
+// CloseResponse メソッドをオーバーライド (クライアント側特有)
+// 🔴 タイミング3b: クライアントが受信を終了する時に実行（1回のみ）
+func (c *loggingClientConn) CloseResponse() error {
+    err := c.StreamingClientConn.CloseResponse()
+
+    if err != nil {
+        c.logger.ErrorContext(c.ctx, "🔴 Client Stream Response Close (error)",
+            slog.String("procedure", c.spec.Procedure),
+            slog.String("error", err.Error()),
+        )
+    } else {
+        // クライアントが受信を終了したタイミングをロギング
+        c.logger.InfoContext(c.ctx, "🔴 Client Stream Response Close",
+            slog.String("procedure", c.spec.Procedure),
+        )
+    }
     return err
 }
 ```
 
-**注意**: `safeErrorString` は上記のUnaryセクションで定義したヘルパー関数と同じものです。
+**CloseAndReceiveについて**: `CloseAndReceive()`メソッドはクライアントストリーミング専用の便利メソッドで、送信終了と最終レスポンス受信を1回の呼び出しで実行します。このメソッドは内部的に`CloseRequest()`と`Receive()`を呼び出すため、オーバーライドしなくても上記の`CloseRequest`と`Receive`メソッドのログが自動的に出力されます。そのため、`CloseAndReceive`メソッドを明示的にオーバーライドする必要はありません。
 
-## 7. 注意点とベストプラクティス
+## 7. サンプルコードで実際のログ出力を確認
 
-インターセプタは強力ですが、本番環境での運用にはいくつかの注意点があります。
+この記事で解説したインターセプタの実装と、実際に動作するサンプルコードを以下のリポジトリで公開しています：
 
-* **ログレベルの使い分け**
-  ペイロード（リクエスト/レスポンス本体）のロギングは非常に詳細であり、ログの量を肥大化させます。上記の実装例のように、リクエストの開始/終了（Handler Stream Start / Finished）は INFO レベルで常に出力し、ペイロード（Send / Receive）は DEBUG レベルで出力するのが良いでしょう。これにより、本番環境ではログレベルを INFO に設定し、問題発生時のみ DEBUG に切り替えて詳細を調査できます。
+**[haru-256/blog-connect-go-interceptor](https://github.com/haru-256/blog-connect-go-interceptor)**
 
-```go
-// 本番環境: INFOレベル
-logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-    Level: slog.LevelInfo, // Send/Receiveの詳細ログは出力されない
-}))
+このリポジトリには、以下のすべてが含まれています：
 
-// デバッグ時: DEBUGレベル
-logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-    Level: slog.LevelDebug, // すべてのログが出力される
-}))
+* **完全なインターセプタ実装** (`internal/interceptor/logger.go`)
+* **サーバー実装** (Unary, Server/Client/Bidirectional Streaming)
+* **クライアント実装** (各RPC種別の呼び出し例)
+
+サーバーとクライアントを実際に動かすことで、この記事で説明したログがどのような順番で出力されるかを確認できます。
+
+```bash
+# サーバーの起動
+make run-server
+
+# 別のターミナルで各RPCを実行
+make get-user        # Unary RPC
+make list-users      # Server Streaming
+make update-users    # Client Streaming
+make chat            # Bidirectional Streaming
 ```
 
-* **PII（個人識別情報）のマスキング**
-  ペイロードには、パスワード、メールアドレス、氏名などの機密情報（PII）が含まれる可能性があります。これらをそのままログに出力することは、セキュリティリスクや法令違反（GDPRなど）につながる可能性があります。
-  対策として、connect-go-redact のようなペイロードをマスキングするインターセプタをロギングインターセプタと併用するか、ロギングインターセプタ自体にマスキングロジックを組み込むことを検討してください。
+各コマンドを実行すると、サーバー側とクライアント側の両方で、🔵（開始）→ 🟢（送受信）→ 🔴（終了）の順番でログが出力される様子を確認できます。
 
-* **パフォーマンスへの影響**
-  毎秒数万リクエストを処理するような高スループット環境で、すべてのリクエストのペイロードを DEBUG レベルでロギングすると、CPUリソースを消費します。本番環境での DEBUG レベルのロギングは、必要な期間のみ有効にすることを推奨します。
+特に、Bidirectional Streaming（chat）では、クライアントが複数のメッセージを送信（🟢 Send）した後に接続をクローズ（🔴 CloseRequest）し、その後サーバーからのレスポンスを受信（🟢 Receive）する様子が観察できます。これにより、ストリーミングの非同期性とインターセプタのロギングタイミングが理解しやすくなります。
+
+実際のBidirectional Streaming（chat）の実行結果は以下のようになります：
+
+Client側
+
+![client](../images/connect-goのUnaryとStreamのインターセプタ解説/client-bidirectional-streaming.png)
+
+Server側
+
+![server](../images/connect-goのUnaryとStreamのインターセプタ解説/server-bidirectional-streaming.png)
 
 ## 8. まとめ
 
-connect-goのインターセプタは、ロギング、認証、メトリクスといった横断的な関心事を分離するための強力な仕組みです。
+connect-goのインターセプタは、ロギング、認証、メトリクスといった横断的な関心事を分離するための便利な仕組みです。
 
 この記事では、slog をベースに、Unary RPCとStreaming RPCの両方のライフサイクルをカバーする実践的なロギングインターセプタ ReqRespLogger を実装しました。
 
@@ -724,7 +854,7 @@ connect-goのインターセプタは、ロギング、認証、メトリクス�
 * **Unary** では、next（処理）をラップします。
 * **Streaming** では、conn（接続）をラップし、Send/Receiveメソッドをオーバーライドします。
 
-このインターセプタを導入することで、アプリケーションの観測可能性は劇的に向上し、開発や運用がよりスムーズになると幸いです。
+この記事が、インターセプタの理解と実装に役立てば幸いです。ぜひサンプルコードを試しながら、実際のログ出力を確認してみてください。
 
 ### 参考リンク
 

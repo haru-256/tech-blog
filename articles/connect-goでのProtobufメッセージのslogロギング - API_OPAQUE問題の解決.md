@@ -250,10 +250,10 @@ func FormatLogValue(msg any) any {
     // エスケープせずにそのまま埋め込む
     //
     // 誤った方法: string(b)を返す
-    // → "user": "{\"id\":\"user-123\"}" （JSONがエスケープされた文字列）
+    // → "user": "{\"userId\":\"user-123\",\"name\":\"Alice\"}" （JSONがエスケープされた文字列）
     //
     // 正しい方法: json.RawMessage(b)を返す
-    // → "user": {"id":"user-123"} （ネストされたJSONオブジェクト）
+    // → "user": {"userId":"user-123","name":"Alice"} （ネストされたJSONオブジェクト）
     return json.RawMessage(b)
 }
 ```

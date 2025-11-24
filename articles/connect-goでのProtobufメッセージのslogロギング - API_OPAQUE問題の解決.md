@@ -7,7 +7,7 @@ topics:
   - protobuf
   - slog
   - connect-go
-published: false
+published: tru
 tags: []
 ---
 
@@ -42,6 +42,16 @@ gRPCでインターセプタを使ってリクエスト/レスポンスをロギ
 * Go 1.21以降（log/slog の使用のため）
 * protoc-gen-go v1.36.0以降（またはAPI_OPAQUEモードを有効にしたv1.32.0以降）
 * google.golang.org/protobuf v1.36.0以降
+
+### サンプルコード
+
+この記事の課題と解決方法を実際のコードで確認したい方は、以下のリポジトリをご参照ください。
+リポジトリには以下が含まれており、実際に手元で動作を確認することで、記事の内容をより深く理解できます。
+
+* API_OPAQUE メッセージを使用したProtobuf定義
+* API_OPAQUE メッセージのロギングを行うConnectインターセプタ
+
+<https://github.com/haru-256/blog-protobuf-api-opaque-message-logging>
 
 ## 2. 問題の再現：Protobufメッセージが{}と表示される
 

@@ -8,7 +8,7 @@ topics:
   - connect-go
   - interceptor
   - architecture
-published: false
+published: true
 tags: []
 ---
 

@@ -3,7 +3,7 @@ title: "uvでPyTorchの環境構築を楽にする - OSやGPUの違いを吸収�
 emoji: "🚀"
 type: "tech"
 topics: ["python", "pytorch", "uv", "機械学習", "環境構築"]
-published: false
+published: true
 ---
 
 3行まとめ

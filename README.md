@@ -61,6 +61,15 @@ PyTorchの環境構築を、OS（macOS/Linux）やGPU有無の違いを吸収し
 
 **記事リンク:** [uvでPyTorchの環境構築を楽にする - OSやGPUの違いを吸収する統一的な方法](./articles/uvでPyTorchの環境構築を楽にする%20-%20OSやGPUの違いを吸収する統一的な方法.md)
 
+### 5 もう「fix」を卒業。gemini-cliで高品質なコミットメッセージを自動生成するgit command
+
+**概要:**
+この投稿では、Google の Gemini CLI を使ってステージング済みの差分から自動で「Conventional Commits」形式のコミットメッセージ案を生成し、エディタで人が最終確認してからコミットする安全なワークフローを紹介します。日常のコミット作業を高速化しつつ、メッセージ品質を保つためのスクリプト例と導入手順、注意点（機密情報の扱い、エディタ設定、alias の注意）を解説しています。
+
+**キーワード:** `gemini` `git` `commit` `Conventional Commits` `automation` `CLI`
+
+**記事リンク:** [もう「fix」を卒業。gemini-cliで高品質なコミットメッセージを自動生成するgit command](https://zenn.dev/haru256/articles/9f126e086fd474)
+
 ---
 
 ## テンプレートの解説

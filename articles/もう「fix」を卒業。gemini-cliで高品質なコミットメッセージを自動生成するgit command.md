@@ -4,7 +4,7 @@ title: "もう「fix」を卒業。gemini-cliで高品質なコミットメッ�
 emoji: "✍️" # zenn: アイキャッチとして使われる絵文字（1文字だけ）
 type: "tech" # zenn: tech: 技術記事 / idea: アイデア記事
 topics: ["git", "ai", "automation", "gemini"] # zenn: タグ。["markdown", "rust", "aws"]のように指定する
-published: false # zenn: 公開設定（falseにすると下書き）
+published: true # zenn: 公開設定（falseにすると下書き）
 tags: ["git", "ai", "automation", "gemini"] # paper: tags
 ---
 

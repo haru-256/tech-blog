@@ -117,27 +117,23 @@ git config --global alias.gcommit '!/Users/<yourname>/.local/bin/git-gcommit.sh'
 
 以下の手順で利用することができます。
 
-1. git addでcommitしたい変更ファイルをステージングする
+1. git addでcommitしたい変更ファイルをステージングします。
 
 ```bash
 git add .
 ```
 
-2. `git gcommit` コマンドを実行し、自作したスクリプトを呼び出す。
+2. `git gcommit` コマンドを実行し、自作したスクリプトを呼び出します。Geminiが差分を解析し、メッセージを生成します（数十秒程度待ちます）。
 
 ```bash
 git gcommit
 ```
 
-![alt text](../images/gemini-cliに一発でcommitメッセージを考えてもらうgit%20command/prompt.png)
+![alt text](../images/もう「fix」を卒業。gemini-cliで高品質なコミットメッセージを自動生成するgit%20command/prompt.png)
 
-- その後、`git gcommit` コマンドを実行すると、ステージングされた変更内容に基づいて `gemini` が commit メッセージを生成します。生成されたメッセージはエディタで開かれ、必要に応じて手動で修正できます。
+3. Gitのエディタが自動的に立ち上がり、AIが書いたメッセージが既に入力された状態になります（私の例では `vim` を使っています）。内容を確認し、必要であれば修正して保存・終了すればコミット完了です。
 
-3. Geminiが差分を解析し、メッセージを生成します（数十秒程度待ちます）。
-
-4. Gitのエディタが自動的に立ち上がり、AIが書いたメッセージが既に入力された状態になります（私の例では `vim` を使っています）。内容を確認し、必要であれば修正して保存・終了すればコミット完了です。
-
-![alt text](../images/gemini-cliに一発でcommitメッセージを考えてもらうgit%20command/vim.png)
+![alt text](../images/もう「fix」を卒業。gemini-cliで高品質なコミットメッセージを自動生成するgit%20command/vim.png)
 
 ## 5. 注意点
 

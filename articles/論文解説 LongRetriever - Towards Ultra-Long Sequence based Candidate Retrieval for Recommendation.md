@@ -1,5 +1,5 @@
 ---
-title: "論文解説 LongRetriever - Towards Ultra-Long Sequence based Candidate Retrieval for Recommendation" # zenn: 記事のタイトル
+title: "【論文解説】ByteDanceの最新検索モデル: LongRetriever - 長期間履歴をRetrievalに組み込む" # zenn: 記事のタイトル
 emoji: "🛒" # zenn: アイキャッチとして使われる絵文字（1文字だけ）
 type: "tech" # zenn: tech: 技術記事 / idea: アイデア記事
 topics: [] # zenn: タグ。["markdown", "rust", "aws"]のように指定する
@@ -11,21 +11,29 @@ published: false # zenn: 公開設定（falseにすると下書き）
 tags: ["recommendation", "retrieval", "candidate generation", "sequential recommendation", "long sequence", "bytedance"] # paper: tags
 ---
 
-タイトル: 論文解説 LongRetriever - Towards Ultra-Long Sequence based Candidate Retrieval for Recommendation
+タイトル: 【論文解説】ByteDanceの最新検索モデル: LongRetriever - 長期間履歴をRetrievalに組み込む
 
-この記事では、ByteDanceの最新論文『LongRetriever』を解説します。この論文は、推薦システムの検索（Retrieval / Candidate Generation）フェーズにおいて、これまで計算コストの制約から困難とされていた超長期間のユーザー行動履歴（Ultra-Long Sequence）と候補商品に応じた適切なユーザーベクトル表現の実用化に成功したものです。
+この記事では、ByteDanceの最新論文: [LongRetriever - Towards Ultra-Long Sequence based Candidate Retrieval for Recommendation](https://arxiv.org/abs/2508.15486)を解説します。
+
+この論文は、推薦システムの検索（Retrieval / Candidate Generation）フェーズにおいて、これまで計算コストの制約から困難とされていた超長期間のユーザー行動履歴（Ultra-Long Sequence）と候補商品に応じた適切なユーザーベクトル表現の実用化に成功したものです。
+
+https://arxiv.org/abs/2508.15486
 
 ※ 本記事の画像は、論文中の図表を引用しています。
+
+本記事は、arXiv Advent Calendar 2025の12/09の記事になります。
+
+https://qiita.com/advent-calendar/2025/arxiv
 
 ## この論文のすごいところ
 
 この研究の特筆すべき点は、以下の3点に集約されます。
 
-* 検索段階での長期間履歴と候補商品に応じた適切なユーザーベクトル表現の活用:
+1. **検索段階での長期間履歴と候補商品に応じた適切なユーザーベクトル表現の活用**:
   計算コストが制約となる検索フェーズにおいて、これまで困難であったユーザーの全行動履歴の活用を可能にするアーキテクチャを提案しました。これにより、候補商品（コンテキスト）に応じた動的なユーザーベクトル生成を検索段階で実現しています。
-* In-Context Trainingによる学習と推論の一貫性:  
+2. **In-Context Trainingによる学習と推論の一貫性**:  
   履歴ベースの検索モデルで課題となる学習時のデータリーク（ターゲット情報の漏洩）を防ぎつつ、推論時と整合性の取れた学習を行うIn-Context TrainingおよびMulti-Context Retrievalを導入しました。
-* 大規模商用環境での実証:  
+3. **大規模商用環境での実証**:  
   ByteDanceの大規模Eコマースプラットフォーム（数億ユーザー規模）でのA/Bテストにおいて、主要なビジネス指標（CVRやCTR）の有意な向上を達成し、既にこの手法が実際のプラットフォームに展開されています。
 
 ## なぜこの論文を選んだか
@@ -33,13 +41,13 @@ tags: ["recommendation", "retrieval", "candidate generation", "sequential recomm
 
 私がこの論文を選んだ理由は、主に以下の3点に強く惹かれたからです。
 
-1. ByteDanceでの実用実績と大規模デプロイ: 
+1. **ByteDanceでの実用実績と大規模デプロイ**: 
   理論的な提案にとどまらず、ByteDanceという巨大なプラットフォームで実際に大きな成果を上げ、すでにプロダクション環境に展開されている点です。
 
-2. 検索フェーズにおける画一的なユーザー表現からの脱却: 
+2. **検索フェーズにおける画一的なユーザー表現からの脱却**: 
   RankingフェーズではTarget Attentionなどを用いて、対象商品に応じた適切なユーザー表現を作成するのが一般的です。しかし、候補検索（Retrieval）のTwo-Towerモデルでは、計算コストの制約から画一的なユーザー表現（単一のベクトル）にならざるを得ず、表現力の限界が性能低下を招いていました。本論文がこの構造的な課題をどのように解決したのか、そのアプローチに関心を持ちました。
 
-3. 長期系列データにおけるノイズの処理手法: 
+3. **長期系列データにおけるノイズの処理手法**: 
   Sequential Recommendationにおいて、行動履歴系列が長くなればなるほど、無関係でノイジーなインタラクションデータが含まれてしまうのが常です。本論文が超長期間のデータを扱う上で、どのようにしてノイズを排除し、有用なシグナルだけを抽出して活用しているのかを知りたいと考えました。
 
 ## 論文解説
@@ -51,19 +59,22 @@ tags: ["recommendation", "retrieval", "candidate generation", "sequential recomm
 ユーザーの興味を正確に捉えるためには「超長期間の行動シーケンス」の活用が不可欠ですが、既存のアプローチは主にランキング段階での活用に留まり、検索段階での研究は十分になされていませんでした。
 
 そこで本論文では、検索段階において長期間シーケンスを活用するための実用的なフレームワークLongRetrieverを提案しています。具体的には、In-Context TrainingとMulti-Context Retrievalという手法を導入することで、ユーザー履歴と候補アイテム間の密な相互作用を実現し、かつ検索ベースにおける学習と推論の整合性を担保しました。  
-大規模EコマースプラットフォームにおけるオンラインA/Bテストの結果、統計的に有意な性能向上が確認され、現在では数十億ユーザーに影響を与える規模で実際にデプロイされています。
+大規模EコマースプラットフォームにおけるオンラインA/Bテストの結果、統計的に有意な性能向上が確認され、現在では数億ユーザーに影響を与える規模で実際にデプロイされています。
 
 ### 既存研究とこの論文の位置づけ (Introduction / Related Work)
 
 これまで検索フェーズでの長期間履歴活用が困難であった背景と、本研究の立ち位置について整理します。
 
-1. 推薦システムの2段階構成:  
+- 推薦システムの2段階構成:  
    産業界の推薦システムは通常、検索（Retrieval）とランキング（Ranking）の2段階で構成されます。検索フェーズでは、膨大なアイテムプールから候補を絞り込むために軽量なモデル（Two-Towerモデルなど）が採用され、ランキングフェーズでは精度を追求した計算コストの高いモデルが使用されます。  
-2. ランキングモデルにおける長期間履歴の活用:  
+
+- ランキングモデルにおける長期間履歴の活用:  
    ランキングモデルの分野では、DINやSIMといった手法の登場により、ターゲットアイテムに関連するユーザー行動を長期間の履歴から抽出する技術（Target Attention等）が進化し、予測精度の飛躍的な向上が実現しています。  
-3. 検索モデルの構造的制約:  
+
+- 検索モデルの構造的制約:  
    一方で、検索モデル（Embedding-based Retrieval: EBR）は、高速な近傍探索（ANN）を実現するためにアイテムベクトルを事前にインデックス化する必要があります。このため、ユーザーエンコーダとアイテムエンコーダは独立して計算される必要があり、ランキングモデルのように候補アイテムに応じてユーザー表現を動的に変化させることが困難でした。結果として、検索フェーズでは直近の短い履歴しか扱えないという制約が存在していました。  
-4. 本論文のアプローチ:  
+
+- 本論文のアプローチ:  
    LongRetrieverは、EBRのエンコーダ独立性という制約を遵守しつつ、アイテムのコンテキスト（カテゴリ等）をキーとして長期間履歴から関連部分を抽出するアプローチを採用することで、上述の課題を解決しています。
 
 ### 提案手法 (Methodology)
@@ -123,7 +134,9 @@ Transformerへの入力トークンは以下の3種類で構成され、これ�
 これらのトークンに対し、学習可能な Positional Encodings（位置埋め込み）と Token Type Embeddings（トークン種別埋め込み）が加算され、Transformer層に入力されます。
 
 
-![alt text](../images/論文解説%20LongRetriever%20-%20Towards%20Ultra-Long%20Sequence%20based%20Candidate%20Retrieval%20for%20Recommendation/fig1a.png)
+![fig1a](https://storage.googleapis.com/zenn-user-upload/44b566888a94-20251209.png)
+*Figure 1-a*
+
 
 ##### 2. In-Context Training (学習フェーズ)
 
@@ -152,7 +165,9 @@ $$
 * 2. Parallel Search (並列検索):  
    選択された各カテゴリについて、対応する履歴 $S_u$ を抽出してユーザーベクトル $e_u$ を生成し、そのカテゴリ専用のインデックスからアイテムを検索します。
 
-![alt text](../images/論文解説%20LongRetriever%20-%20Towards%20Ultra-Long%20Sequence%20based%20Candidate%20Retrieval%20for%20Recommendation/fig1b.png)
+![fig1b](https://storage.googleapis.com/zenn-user-upload/240554466de4-20251209.png)
+*Figure 1 - b*
+
 
 ### 実験と結果 (Experiments / Results)
 
@@ -180,13 +195,16 @@ $$
 * ビジネス指標の大幅な改善:  
   Table 1の結果によると、MINDと比較して UV CVR: +1.33%, Orders Per User: +1.70% という改善が確認されました。数十億ユーザー規模のサービスにおいて、この改善幅は極めて大きなビジネスインパクトを持ちます。  
 
-![alt text](../images/論文解説%20LongRetriever%20-%20Towards%20Ultra-Long%20Sequence%20based%20Candidate%20Retrieval%20for%20Recommendation/table1.png)
+![table1](https://storage.googleapis.com/zenn-user-upload/aa2dcb323aee-20251209.png)
+*Table 1*
+
 
 * **検索品質の変化 (Table 2):**  
   * **AERの低下 (31.82% → 18.72%):** MINDより大幅に低い値となりました。これは、MINDが全アイテムプールから広く探索するのに対し、LongRetrieverは特定のコンテキストに絞って探索するため、探索範囲が効率化されていることを意味します。  
   * UERの向上 (4.58% → 9.29%): **+4.71%** と約2倍に向上しました。これは、LongRetrieverが既存の手法では埋もれていたニッチだが特定のユーザーには刺さるアイテムを独自に発見し、ユーザーに届けていることを強く示唆しています。  
 
-![alt text](../images/論文解説%20LongRetriever%20-%20Towards%20Ultra-Long%20Sequence%20based%20Candidate%20Retrieval%20for%20Recommendation/table2.png)
+![table2](https://storage.googleapis.com/zenn-user-upload/0f04ac186048-20251209.png)
+*Table 2*
 
 * Ablation Study（構成要素の検証）:  
   提案手法の各要素の有効性についても詳細な分析が行われています。  
@@ -197,11 +215,14 @@ $$
   3. 興味選択戦略 (Table 3):  
      推論時に興味カテゴリを選択する際、スコア上位5つ (Top 5)を固定で選ぶよりも、上位20個からランダムに5つ (Random 5 in Top 20)選ぶ方が、UER（独自性）が高く、エコシステムの健全性に寄与することが確認されました。
 
-![alt text](../images/論文解説%20LongRetriever%20-%20Towards%20Ultra-Long%20Sequence%20based%20Candidate%20Retrieval%20for%20Recommendation/table3.png)
+![table3](https://storage.googleapis.com/zenn-user-upload/434744a604f4-20251209.png)
+*Table 3*
 
-![alt text](../images/論文解説%20LongRetriever%20-%20Towards%20Ultra-Long%20Sequence%20based%20Candidate%20Retrieval%20for%20Recommendation/table4.png)
+![table4](https://storage.googleapis.com/zenn-user-upload/79b5e7102147-20251209.png)
+*Table 4*
 
-![alt text](../images/論文解説%20LongRetriever%20-%20Towards%20Ultra-Long%20Sequence%20based%20Candidate%20Retrieval%20for%20Recommendation/table5.png)
+![table5](https://storage.googleapis.com/zenn-user-upload/66b2a3307ba7-20251209.png)
+*Table 5*
 
 ### 結論と限界や今後の展望(Discussion / Conclusion)
 
@@ -256,6 +277,6 @@ LongRetrieverは、超長期間履歴と、対象商品ごとの適切なユー�
 * 本論文:  
   * [Long Retriever: Towards Ultra-Long Sequence based Candidate Retrieval for Recommendation (arXiv 2025\)](https://arxiv.org/abs/2508.15486)  
 * 関連する重要論文:  
-  * MIND: [Multi-Interest Network with Dynamic Routing (CIKM 2019\)](https://arxiv.org/abs/1904.08030) - 比較対象となったマルチインタレストモデルの金字塔。  
-  * SIM: [Search-based User Interest Modeling (CIKM 2020\)](https://arxiv.org/abs/2006.05639) - Rankingフェーズでの検索ベースのアプローチを確立した研究。LongRetrieverの着想元の一つ。  
-  * DIN: [Deep Interest Network (KDD 2018\)](https://arxiv.org/abs/1706.06978) - Attention機構によるユーザー興味モデリングの基礎。
+  * MIND: [Multi-Interest Network with Dynamic Routing (CIKM 2019)](https://arxiv.org/abs/1904.08030) - 比較対象となったマルチインタレストモデル。
+  * SIM: [Search-based User Interest Modeling (CIKM 2020)](https://arxiv.org/abs/2006.05639) - Rankingフェーズでの検索ベースのアプローチを確立した研究。LongRetrieverの着想元の一つ。
+  * DIN: [Deep Interest Network (KDD 2018)](https://arxiv.org/abs/1706.06978) - Attention機構によるユーザー興味モデリングの基礎。

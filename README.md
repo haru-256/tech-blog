@@ -74,6 +74,17 @@ PyTorchの環境構築を、OS（macOS/Linux）やGPU有無の違いを吸収し
 
 ---
 
+### 6. 【論文解説】ByteDanceの最新検索モデル: LongRetriever - 長期間履歴をRetrievalに組み込む
+
+**概要:**
+ByteDanceが発表した推薦システム「LongRetriever」の解説記事です。検索（Retrieval）フェーズにおいて、従来困難だった「超長期間のユーザー行動履歴」の活用を可能にするアーキテクチャを提案。In-Context TrainingとMulti-Context Retrievalにより、ターゲット商品（コンテキスト）に応じた適切なユーザーベクトル生成を実現し、大規模商用環境で大幅な性能向上を達成した手法について詳しく解説します。
+
+**キーワード:** `ByteDance` `推薦システム` `Retrieval` `Long Sequence` `In-Context Training` `機械学習`
+
+**記事リンク:** [【論文解説】ByteDanceの最新検索モデル: LongRetriever - 長期間履歴をRetrievalに組み込む](./articles/%E8%AB%96%E6%96%87%E8%A7%A3%E8%AA%AC%20LongRetriever%20-%20Towards%20Ultra-Long%20Sequence%20based%20Candidate%20Retrieval%20for%20Recommendation.md)
+
+---
+
 ## テンプレートの解説
 
 | ファイル | 用途 |

@@ -81,7 +81,7 @@ ByteDanceが発表した推薦システム「LongRetriever」の解説記事で�
 
 **キーワード:** `ByteDance` `推薦システム` `Retrieval` `Long Sequence` `In-Context Training` `機械学習`
 
-**記事リンク:** [【論文解説】ByteDanceの最新検索モデル: LongRetriever - 長期間履歴をRetrievalに組み込む](./articles/%E8%AB%96%E6%96%87%E8%A7%A3%E8%AA%AC%20LongRetriever%20-%20Towards%20Ultra-Long%20Sequence%20based%20Candidate%20Retrieval%20for%20Recommendation.md)
+**記事リンク:** [【論文解説】ByteDanceの最新検索モデル: LongRetriever - 長期間履歴をRetrievalに組み込む](https://zenn.dev/haru256/articles/0d4650a5914974)
 
 ---
 

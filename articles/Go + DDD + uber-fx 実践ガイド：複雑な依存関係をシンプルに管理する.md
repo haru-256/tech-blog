@@ -7,6 +7,8 @@ published: false # zenn: 公開設定（falseにすると下書き）
 tags: ["go", "ddd", "uber-fx"] # paper: tags
 ---
 
+これは、Go Advent Calendar 2025(2枚目)の16日目の記事です。
+<https://qiita.com/advent-calendar/2025/go>
 
 ## 3行まとめ
 

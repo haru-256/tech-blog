@@ -43,12 +43,14 @@ connect-goのインターセプタ実装パターンとライフサイクルを�
 
 ---
 
-### 3. DDDにおけるuber-fxによるDI
+### 3. Go + DDD + uber-fx 実践ガイド：複雑な依存関係をシンプルに管理する
 
 **概要:**
-*(執筆中)*
+GoのDDD実装における`main.go`の肥大化問題を、DIライブラリ`uber-go/fx`（fx）で解決します。`fx.Module`や`fx.Private`を活用し、コンテキスト境界を保ったままレイヤー間を疎結合に配線する手法を解説。さらに、ライフサイクル管理によるGraceful Shutdownや、`fx.Replace`を用いたテスト時の依存差し替え戦略についても紹介します。
 
-**記事リンク:** [DDDにおけるuber-fxによるDI](./articles/DDDにおけるuber-fxによるDI.md)
+**キーワード:** `Go` `DDD` `uber-fx` `DI` `Clean Architecture`
+
+**記事リンク:** [Go + DDD + uber-fx 実践ガイド：複雑な依存関係をシンプルに管理する](./articles/Go%20+%20DDD%20+%20uber-fx%20実践ガイド：複雑な依存関係をシンプルに管理する.md)
 
 ---
 

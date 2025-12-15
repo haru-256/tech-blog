@@ -106,7 +106,7 @@ func main() {
 
 ## 3. 全体像：アーキテクチャとディレクトリ構成
 
-本記事では、標準的なGoのプロジェクト構成を採用しています。依存の方向は Presentation -> Application -> Infrastructure -> Domain となり、各層が下位の層（または実装）を取り込む形で構成しています。
+本記事では、標準的なGoのプロジェクト構成を採用しています。依存の方向は、`Presentation` -> `Application` -> `Domain` のように、外側のレイヤーから内側のレイヤーに向かいます。`Infrastructure`層は`Domain`層で定義されたインターフェースを実装し、DIコンテナによって`Application`層に注入されます。
 
 ```sh
 internal/
@@ -254,6 +254,8 @@ var Module = fx.Module(
 このようにすることで、上位レイヤーは下位レイヤーのモジュールを内包し、main.go の記述をさらにシンプルに保つことができます。
 例えば、今回は、presentation -> application -> infrastructure の順でモジュール間の依存があるため、`main.go`ではpresentation モジュールのみを読み込むだけで十分です。
 
+例えば、今回は、`presentation`モジュールが`application`モジュールを、`application`モジュールが`infrastructure`モジュールを取り込む構成にしています。これにより、`main.go`では`presentation`モジュールのみを読み込むだけで済みます。
+
 ```go
 // cmd/server/main.go
 func main() {
@@ -301,14 +303,15 @@ var Module = fx.Module(
 
 ## 6. 実践②：fx.Annotateによる「インターフェース注入」
 
-単純な `fx.Provide` にはDDD的な課題があります。
-`NewUserRepositoryImpl` が具体的な構造体（`*UserRepositoryImpl`）を返している点です。本来、上位レイヤーはインターフェース（`domain.UserRepository`）に依存すべきです。
+実践①のように、単純に `fx.Provide` を使うだけでは、DDD（レイヤードアーキテクチャ）における依存関係の原則に関する問題が発生します。
+問題は、`NewUserRepositoryImpl` が具体的な構造体（`*UserRepositoryImpl`）を返している点です。これをそのまま使うと、Application層がInfrastructure層の具象型に直接依存してしまい、依存の方向が逆転してしまいます（依存性逆転の原則違反）。
+本来、Application層はDomain層で定義されたインターフェース（`domain.UserRepository`）にのみ依存すべきです。
 
-ここで、「コンストラクタの戻り値をインターフェースに書き換えれば良いのでは？」と思うかもしれません。しかし、Goには "Accept interfaces, return structs"（インターフェースを受け取り、構造体を返す） というベストプラクティスがあります。
+ここで「コンストラクタの戻り値をインターフェースに書き換えれば良いのでは？」と思うかもしれませんが、Goには **"Accept interfaces, return structs"**（インターフェースを受け取り、構造体を返す）というベストプラクティスがあります。
+コンストラクタでインターフェースを返してしまうと、実装の詳細を過度に隠蔽したり、呼び出し側が「必要なメソッドだけを含む最小限のインターフェース」を独自に定義する自由を奪うことになります。
 
-コンストラクタでインターフェースを返してしまうと、実装の詳細を過度に隠蔽してしまったり、呼び出し側が必要なメソッドだけを含むインターフェースを独自に定義する自由を奪ってしまうため、コンストラクタは具象型（struct）を返すのが好ましいとされています。
-
-uber-fx の `fx.Annotate` と `fx.As` を使えば、このGoの流儀（具象型を返す）を維持したまま、DIコンテナへの登録時だけインターフェースとして振る舞わせることができます。
+そこで役立つのが `fx.Annotate` と `fx.As` です。
+これらを使うと、**「コンストラクタは構造体を返す」というGoの流儀を維持したまま、DIコンテナへの登録時だけインターフェースとして振り舞わせる** ことができます。
 
 ```go
 // internal/infrastructure/module.go (Step 2: インターフェースとして登録)

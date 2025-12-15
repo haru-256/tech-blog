@@ -12,19 +12,19 @@ tags: ["go", "ddd", "uber-fx"] # paper: tags
 
 * GoのDDD実装における`main.go`の肥大化問題を、DIライブラリ`uber-fx`で解決します。
 * `fx.Module`や`fx.Private`を活用し、コンテキスト境界を保ったままレイヤー間を疎結合に配線する手法を解説します。
-* ライフサイクル管理によるGraceful Shutdownや、`fx.Decorate`を用いたテスト時の依存差し替え戦略も紹介します。
+* ライフサイクル管理によるGraceful Shutdownや、`fx.Replace`を用いたテスト時の依存差し替え戦略も紹介します。
 
 ## 1. はじめに：なぜDDDの実装にDIライブラリが必要なのか
 
-Goでドメイン駆動設計（DDD）やクリーンアーキテクチャを採用すると、レイヤー間の依存関係はきれいに整理され、テスタビリティが向上します。しかしその反面、main.go における構造体の初期化と依存注入（DI）のコードは指数関数的に肥大化し、複雑になりがちです。
+Goでドメイン駆動設計（DDD）やクリーンアーキテクチャを採用すると、レイヤー間の依存関係はきれいに整理され、テスタビリティが向上します。しかしその反面、main.go における構造体の初期化と依存注入（DI）のコードは急速に肥大化し、複雑になりがちです。
 
 本記事では、DIライブラリである uber-go/fx を活用し、Goの構造体定義を汚さずに、テスト容易性を保ったままDDDのレイヤー構造をきれいに分離・配線する実践的な手法を紹介します。
 
-<https://github.com/haru-256/blog-ddd-uber-fx>
-
-実装のサンプルとして、以下のリポジトリを参考にしています。
-
 <https://github.com/uber-go/fx>
+
+実装のサンプルコードは以下のリポジトリで公開しています。
+
+<https://github.com/haru-256/blog-ddd-uber-fx>
 
 ## 2. なぜuber-fxなのか：手動DIとの比較
 
@@ -32,14 +32,14 @@ DDDの実装において、なぜDIライブラリ、特に uber-fx を採用す
 
 ### 手動DIの課題
 
-Goでは「DIコンテナを使わず、main関数で手動で組み立てるのがシンプルで良い」という意見もあります。小規模なアプリケーションならそれが良いと思われます。
+Goでは「DIコンテナを使わず、main関数で手動で組み立てるのがシンプルで良い」という意見もあります。小規模なアプリケーションであれば、それが最適解であることも多いです。
 しかし、DDDのようにレイヤーが多層化し、コンポーネント数が増えると、`main.go` は次のような初期化ボイラープレートの塊と化します。
 
 ```go
 // 手動DIの例（プロジェクトが育つにつれて管理が困難になる）
 func main() {
     // 1. Infrastructure層の初期化
-    // 依存順序を意識して初期化しなければなりません
+    // 依存順序を意識した初期化が必要
     dbConn := db.NewDatabase()
     // Loggerは多くの場所で必要になるため、初期段階で作ります
     logger := logger.NewLogger()
@@ -66,7 +66,7 @@ func main() {
 
 このアプローチには、運用規模が大きくなるにつれて以下の課題が発生します。
 
-* **依存順序の管理**: 「Aを作るにはBが必要だから、先にBを作らないと...」というパズルを人間が解き続ける必要があります。
+* **依存順序の管理**: 「Aを作るにはBが必要だから、先にBを作らないと...」という依存関係のパズルを手動で解き続ける必要があります。
 * **共通コンポーネントの引き回し**: Logger、Config、Tracerなど、アプリ全体で使うコンポーネントを末端のRepositoryまで届けるために、中間層のすべてのコンストラクタを経由してバケツリレーする必要があります。
 * **修正コスト**: あるServiceの依存が1つ増えただけで、main.go の初期化フロー全体を見直す必要が出てきます。
 
@@ -78,35 +78,37 @@ uber-fx を導入すると、上記の手続き的なコードは、「何を使
 // uber-fx の例
 func main() {
     fx.New(
-        // コンストラクタを「登録」するだけ。順番は気にしなくて良い。
+        // コンストラクタを「登録」するだけ。順番は気にしなくて良い
         fx.Provide(
-         db.NewDatabase,
-         logger.NewLogger,           // Loggerもただ登録するだけ
-         db.NewUserRepositoryImpl,   // fxが自動で引数(*Database, Logger)を解決して注入
-         service.NewUserServiceImpl, // fxが自動で引数(Repo, Logger)を解決して注入
-         server.NewUserServiceHandler,
+            db.NewDatabase,
+            logger.NewLogger,           // Logger も登録するだけ
+            db.NewUserRepositoryImpl,   // fx が自動で引数(*Database, Logger)を解決して注入
+            service.NewUserServiceImpl, // fx が自動で引数(Repo, Logger)を解決して注入
+            server.NewUserServiceHandler,
         ),
         // 起動時のエントリーポイント
         fx.Invoke(func(srv *server.ServiceServer) {
-         srv.Run()
+            srv.Run()
         }),
     ).Run()
 }
 ```
 
-コンストラクタの引数の型を見て、必要なインスタンスを自動で注入してくれます。依存関係のグラフをライブラリが構築するため、人間が初期化順序を気にする必要はありません。
+`fx.Provide` はコンストラクタの引数の型から必要なインスタンスを自動で解決し、注入してくれます。依存関係のグラフをライブラリが構築するため、手動で初期化順序を管理する必要がありません。
 
-### uber-fx を使う3つの理由
+### uber-fx を選ぶ3つのメリット
 
-1. **自動的な依存解決**: コンストラクタの引数の型を見て、必要なインスタンスを自動で注入してくれます。
-2. **モジュール化機能**: 機能やレイヤーごとにDI設定を `fx.Module` として切り出すことができ、コンテキスト境界をコード上で表現しやすくなります。
-3. **ライフサイクル管理**: アプリケーションの開始時（OnStart）と終了時（OnStop）のフック機能が統合されており、Graceful Shutdownやリソース管理を統一的に扱えます。
+1. **自動的な依存解決**: コンストラクタの引数の型から必要なインスタンスを推論し、自動で注入してくれます。
+2. **モジュール化**: 機能やレイヤーごとにDI設定を `fx.Module` として切り出すことができ、コンテキスト境界をコード上で表現しやすくなります。
+3. **統一的なライフサイクル管理**: アプリケーションの開始時（OnStart）と終了時（OnStop）のフック機能により、Graceful ShutdownやリソースクリーンアップをDI管理下で実現できます。
 
 本記事では、この uber-fx を用いて、DDDの各レイヤーをどのように疎結合に保ちつつ、効率的に配線していくかを解説します。
 
-## 3. 全体像：アーキテクチャとディレクトリ構成
+## 3. 前提となるアーキテクチャとディレクトリ構成
 
-本記事では、標準的なGoのプロジェクト構成を採用しています。依存の方向は、`Presentation` -> `Application` -> `Domain` のように、外側のレイヤーから内側のレイヤーに向かいます。`Infrastructure`層は`Domain`層で定義されたインターフェースを実装し、DIコンテナによって`Application`層に注入されます。
+具体的な実装解説に入る前に、本記事で扱うアプリケーションのレイヤー構造を共有します。uber-fx は、プロジェクトのディレクトリ構成に合わせて `fx.Module` を定義することで、真価を発揮します。
+
+本記事では、以下のような標準的なGoのDDDプロジェクト構成を想定しています。依存の向きは `Presentation` → `Application` → `Infrastructure` → `Domain` のように、外側から内側へと一方向に流れます。`Infrastructure` 層は `Domain` 層で定義されたインターフェースを実装し、DIコンテナによって上位層に注入されます。
 
 ```sh
 internal/
@@ -149,25 +151,9 @@ graph TD
     RepoImpl -->|Accesses| DB
 ```
 
-uber-fx の基本となるのは `main.go` です。
-最終的なコードは設定値なども含みますが、最も基本的な形は以下のようになります。各層のモジュール（Module）を読み込むだけで、個別の構造体初期化は行いません。
-
-```go
-// cmd/server/main.go (簡易版)
-func main() {
-  app := fx.New(
-    // 各層のモジュールを読み込む
-    // これだけで依存関係が自動的に解決される
-    presentation.Module,
-    application.Module,
-    infrastructure.Module,
-  )
-  app.Run()
-}
-```
-
 ## 4. uber-fxの仕組み
 
+実践の前に、uber-fxの仕組みに触れておきます。
 `fx.Provide` に関数を渡すだけで、自動的に依存関係が解決されますが、裏側では以下のステップで処理が行われています。
 
 ### Step 1: 型情報の解析 (Reflection)
@@ -240,31 +226,8 @@ func main() {
 }
 ```
 
-```go
-// internal/application/module.go
-var Module = fx.Module(
-    "application",
-    infrastructure.Module, // インフラ層を取り込む
-    fx.Provide(
-        service.NewUserServiceImpl,
-    ),
-)
-```
-
-このようにすることで、上位レイヤーは下位レイヤーのモジュールを内包し、main.go の記述をさらにシンプルに保つことができます。
-例えば、今回は、presentation -> application -> infrastructure の順でモジュール間の依存があるため、`main.go`ではpresentation モジュールのみを読み込むだけで十分です。
-
-例えば、今回は、`presentation`モジュールが`application`モジュールを、`application`モジュールが`infrastructure`モジュールを取り込む構成にしています。これにより、`main.go`では`presentation`モジュールのみを読み込むだけで済みます。
-
-```go
-// cmd/server/main.go
-func main() {
-    app := fx.New(
-      presentation.Module,   // プレゼンテーション層
-    )
-    app.Run()
-}
-```
+ここで重要なのは、モジュール間の依存関係もコードで表現できる点です。
+今回は presentation が application を、application が infrastructure を利用する階層構造になっています。これをモジュール定義に反映させます。
 
 ```go
 // internal/presentation/module.go
@@ -288,27 +251,17 @@ var Module = fx.Module(
 )
 ```
 
-```go
-// internal/infrastructure/module.go
-var Module = fx.Module(
-    "infrastructure",
-    fx.Provide(
-        db.NewDatabase,           // func NewDatabase() *Database
-        db.NewUserRepositoryImpl, // func NewUserRepositoryImpl(db *Database) *UserRepositoryImpl
-    ),
-)
-```
-
-このように、Presentation層のモジュールはApplication層のモジュールのみに依存し、Infrastructure層を直接参照しない構成にできます。これにより、内部のInfrastructure層のモジュールを隠蔽し、コンテキスト境界をより強固にコードで表現できます。
+このようにすることで、上位レイヤーは下位レイヤーのモジュールを内包し、main.go の記述をさらにシンプルに保つことができます。
+例えば、今回は、`presentation`モジュールが`application`モジュールを、`application`モジュールが`infrastructure`モジュールを取り込む構成にしています。これにより、`main.go`では`presentation`モジュールのみを読み込むだけで済みます。
 
 ## 6. 実践②：fx.Annotateによる「インターフェース注入」
 
-実践①のように、単純に `fx.Provide` を使うだけでは、DDD（レイヤードアーキテクチャ）における依存関係の原則に関する問題が発生します。
-問題は、`NewUserRepositoryImpl` が具体的な構造体（`*UserRepositoryImpl`）を返している点です。これをそのまま使うと、Application層がInfrastructure層の具象型に直接依存してしまい、依存の方向が逆転してしまいます（依存性逆転の原則違反）。
-本来、Application層はDomain層で定義されたインターフェース（`domain.UserRepository`）にのみ依存すべきです。
+実践①のように、単純に `fx.Provide` を使うだけでは、DDD の依存関係の原則に問題が生じます。
+`NewUserRepositoryImpl` は具体的な構造体（`*UserRepositoryImpl`）を返すため、これをそのまま登録すると、Application 層が Infrastructure 層の具象型に直接依存してしまいます。これは依存性逆転の原則（DIP）に違反しています。
+本来、Application 層は Domain 層で定義されたインターフェース（`domain.UserRepository`）にのみ依存すべきです。
 
-ここで「コンストラクタの戻り値をインターフェースに書き換えれば良いのでは？」と思うかもしれませんが、Goには **"Accept interfaces, return structs"**（インターフェースを受け取り、構造体を返す）というベストプラクティスがあります。
-コンストラクタでインターフェースを返してしまうと、実装の詳細を過度に隠蔽したり、呼び出し側が「必要なメソッドだけを含む最小限のインターフェース」を独自に定義する自由を奪うことになります。
+「コンストラクタの戻り値をインターフェースに変更すれば良いのでは？」と考えるかもしれませんが、Goには **"Accept interfaces, return structs"**（インターフェースを受け取り、構造体を返す）というベストプラクティスがあります。
+コンストラクタがインターフェースを返してしまうと、実装の詳細が過度に隠蔽されて柔軟性が失われ、呼び出し側が「必要なメソッドだけの最小限のインターフェース」を定義する自由度が損なわれます。
 
 そこで役立つのが `fx.Annotate` と `fx.As` です。
 これらを使うと、**「コンストラクタは構造体を返す」というGoの流儀を維持したまま、DIコンテナへの登録時だけインターフェースとして振り舞わせる** ことができます。
@@ -333,9 +286,9 @@ var Module = fx.Module(
 
 ## 7. 実践③：fx.Privateによる「カプセル化の強制」
 
-さらに改善を進めます。db.NewDatabase で生成されるDBインスタンスは、Infrastructure層内部（リポジトリ実装）でのみ必要であり、Domain層やApplication層から直接触られたくありません。
+さらに改善を進めます。`db.NewDatabase` で生成される DB インスタンスは、Infrastructure 層内部（リポジトリ実装）でのみ必要で、Domain 層や Application 層から直接アクセスされるべきではありません。
 
-`fx.Private` を使うと、そのModule内でのみ依存を利用可能にし、外部への流出を防ぐことができます。
+`fx.Private` を使うと、その Module 内でのみ依存を利用可能にし、外部への露出を防ぐことができます。
 
 ```go
 // internal/infrastructure/module.go (Step 3: カプセル化)
@@ -345,7 +298,7 @@ var Module = fx.Module(
         // 公開するコンポーネント
         fx.Annotate(
             db.NewUserRepositoryImpl,
-            fx.As(new(repositories.UserRepository)),
+            fx.As(new(domain.UserRepository)),
         ),
     ),
     // 内部でのみ使用するコンポーネント
@@ -356,59 +309,61 @@ var Module = fx.Module(
 )
 ```
 
-これで、ドメインロジック内で誤って生のDB接続を触ってしまうといったアーキテクチャ違反を、コンパイル/起動時に防ぐことができます。
-例えば、application層から`db.NewDatabase`の返り値を引数に取るコンポーネントを`fx.Provide`に登録しても、依存する値が見つからず、コンパイルエラーになってくれます。
+これにより、ドメインロジック内で誤って生の DB 接続にアクセスするといったアーキテクチャ違反を、起動時に防ぐことができます。
+例えば、Application 層から `db.NewDatabase` の返り値を引数に取るコンポーネントを `fx.Provide` に登録しても、依存値が見つからずアプリケーション起動時にエラーが報告されます。
 
 ## 8. 実践④：設定値の注入とタグ (`fx.Supply`)
 
-ここまでは構造体の依存解決でしたが、ポート番号やログレベルといった「プリミティブな値」はどう扱えばよいでしょうか？
+ここまでは構造体の依存解決について説明しましたが、ポート番号やログレベルといった「プリミティブ型の値」はどう扱えばよいでしょうか？
 
-ここで登場するのが `fx.Supply` と タグ です。
+そこで活躍するのが `fx.Supply` とタグです。
 
-### 供給側 (`main.go`)
+### 供給側（main.go）
 
-`fx.Supply` と `fx.Annotated` を使って、名札（Name）を付けた値をコンテナに投入します。
+`fx.Supply` と `fx.Annotated` を使って、タグ付きの値をコンテナに登録します。
 
 ```go
 // cmd/server/main.go
 func main() {
     app := fx.New(
         fx.Supply(
-            // "serverPort" という名前で "8080" という文字列を登録
+            // "serverPort" というタグで "8080" という値を登録
             fx.Annotated{Name: "serverPort", Target: "8080"},
         ),
         presentation.Module,
-    // ...
+        // ...
     )
     app.Run()
 }
 ```
 
-### 利用側 (`Module`)
+### 利用側（Module）
 
-受け取る側のコンストラクタでは、`fx.ParamTags` を使って「どの名前の値が欲しいか」を指定します。
+受け取る側のコンストラクタでは、`fx.ParamTags` を使って「どのタグの値を必要とするか」を指定します。
 
 ```go
 // internal/presentation/module.go
+
+// server.NewServiceServerConfig のシグネチャ例:
+// func NewServiceServerConfig(port string) (*ServerConfig, error) { ... }
 fx.Provide(
     fx.Annotate(
         server.NewServiceServerConfig,
-        // 引数に対応するタグを指定
-        // 1つ目の引数に "serverPort" という名前の値を注入する
+        // 第1引数(port)に "serverPort" というタグ付きの値を注入
         fx.ParamTags(`name:"serverPort"`),
     ),
 ),
 ```
 
-これにより、巨大なConfig構造体を引き回すことなく、必要な設定値だけをピンポイントで注入できます。
+こうすることで、巨大な Config 構造体を引き回すことなく、必要な設定値だけをピンポイントで注入できます。
 
 ## 9. 実践⑤：Group機能による「OCP（開放閉鎖の原則）」の実現
 
-次に、少し高度ですが非常に便利な Group機能 を紹介します。これは「新しい機能を追加する際に、既存のコードを修正したくない」という要求に応えるものです。
+次に、拡張性に優れた Group 機能を紹介します。これは「新機能を追加する際に既存コードの修正を避けたい」という要求に応えるパターンです。
 
 ### Before: Group機能を使わない場合
 
-Group機能を使わない場合、ハンドラーが増えるたびに ServiceServer 構造体のフィールドを追加し、コンストラクタの引数も増やす必要があります。
+Group 機能を使わない場合、ハンドラーが増えるたびに `ServiceServer` 構造体にフィールドを追加し、コンストラクタの引数も増やさなければなりません。
 
 ```go
 // ❌ 悪い例：新しいHandlerを追加するたびに、ここを修正する必要がある
@@ -424,7 +379,7 @@ func NewServiceServer(u *UserHandler, t *TaskHandler /*, p *ProductHandler */) *
 }
 ```
 
-これでは、新しいAPIエンドポイントを追加するたびに、本来修正する必要のない `ServiceServer` のコードに手を入れなければならず、開放閉鎖の原則（拡張に対しては開いていて、修正に対しては閉じているべき） に違反してしまいます。
+これでは新しい API エンドポイントを追加するたびに、本来修正する必要のない `ServiceServer` のコードに手を入れることになり、開放閉鎖の原則（OCP：拡張に対しては開いていて、修正に対しては閉じているべき）に違反します。
 
 ### After: Group機能を使う場合
 
@@ -476,7 +431,7 @@ fx.Annotate(
 
 DDDの設計からは少し離れますが、本番アプリケーションにおいて非常に重要なのが Graceful Shutdown です。
 
-通常、GoでHTTPサーバーを安全に停止させるには、`signal.NotifyContext` を使ってOSシグナル（SIGINT, SIGTERM）を監視し、シグナルを受け取ったら `server.Shutdown()` を呼ぶ...といったボイラープレートを `main.go` に書く必要があります。
+通常、GoでHTTPサーバーを安全に停止させるには、`signal.NotifyContext` を使ってOSシグナル（SIGINT, SIGTERM）を監視し、シグナルを受け取ったら `server.Shutdown()` を呼ぶ...といった定型処理を `main.go` に記述する必要があります。
 
 uber-fx には `fx.Lifecycle` という仕組みが組み込まれており、これらを宣言的に記述できます。
 `main.go` で `app.Run()` を実行すると、uber-fx は自動的にOSシグナルを待機します。シグナルを受け取ると、登録された OnStop フックを依存関係の逆順（サーバー停止 -> DB切断など）で実行してくれます。
@@ -496,7 +451,7 @@ func RegisterLifecycleHooks(lc fx.Lifecycle, server *ServiceServer) {
         OnStart: func(ctx context.Context) error {
             go func() {
                 // 非ブロッキングでサーバー起動
-                if err := server.e.Start(""); err != nil {
+                if err := server.e.Start(":8080"); err != nil && err != http.ErrServerClosed {
                     // 必要に応じてエラーログなどを出力
                 }
             }()
@@ -547,29 +502,28 @@ func main() {
 
 開発者は「終了時に何をすべきか」を記述するフックを実装し、適切なモジュールで `fx.Invoke` するだけでよく、`signal.Notify` などの複雑な記述から解放されます。
 
-## 11. テスト戦略：fx.Decorateによる「依存の差し替え」
+## 11. テスト戦略：fx.Replaceによる「依存の差し替え」
 
-結合テストやE2Eテストにおいて、一部のコンポーネント（例：ロガーや外部APIクライアント）だけをモックに差し替えたい場合は `fx.Decorate` を使います。
+結合テストやE2Eテストにおいて、一部のコンポーネント（例：ロガーや外部APIクライアント）だけをモックに差し替えたい場合は `fx.Replace` を使います。
 
-例えば、テスト時はロガーを無効にするために、`fx.Decorate` を使って既存の `Logger` 定義を上書きすることができます。
+例えば、テスト時はロガーを無効にするために、`fx.Replace` を使って既存の `Logger` 定義を上書きすることができます。
 
 ```go
 // internal/infrastructure/module_test.go
 func TestModule(t *testing.T) {
     app := fxtest.New(t,
         infrastructure.Module,
-        // 既存のLogger定義を、この関数の戻り値で上書き（ラップ）する
-        fx.Decorate(func() (*slog.Logger, error) {
-            // 何も出力しないロガーを返す
-            return slog.New(slog.NewTextHandler(io.Discard, nil)), nil
-        }),
+        // 既存のLogger定義を、このインスタンスで上書きする
+        fx.Replace(
+            slog.New(slog.NewTextHandler(io.Discard, nil)),
+        ),
     // ...
     )
     // ...
 }
 ```
 
-`fx.Decorate` は「既存のProviderを加工・置換する」機能です。本番用のModule定義をそのまま使いつつ、テスト時だけ挙動を変えることができます。
+`fx.Replace` は「既存のProviderを特定の値で置換する」機能です。本番用のModule定義をそのまま使いつつ、テスト時だけ挙動を変えることができます。
 
 ## 12. まとめ
 

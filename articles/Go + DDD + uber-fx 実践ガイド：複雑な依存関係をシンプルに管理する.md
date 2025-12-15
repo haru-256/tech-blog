@@ -7,7 +7,7 @@ published: false # zenn: 公開設定（falseにすると下書き）
 tags: ["go", "ddd", "uber-fx"] # paper: tags
 ---
 
-これは、Go Advent Calendar 2025(2枚目)の16日目の記事です。
+これは、Go Advent Calendar 2025 の16日目の記事です。
 <https://qiita.com/advent-calendar/2025/go>
 
 ## 3行まとめ
@@ -16,14 +16,18 @@ tags: ["go", "ddd", "uber-fx"] # paper: tags
 * `fx.Module`や`fx.Private`を活用し、コンテキスト境界を保ったままレイヤー間を疎結合に配線する手法を解説します。
 * ライフサイクル管理によるGraceful Shutdownや、`fx.Replace`を用いたテスト時の依存差し替え戦略も紹介します。
 
+![image](https://storage.googleapis.com/zenn-user-upload/0cb060a669ed-20251216.png)
+
 ## 1. はじめに：なぜDDDの実装にDIライブラリが必要なのか
 
 Goでドメイン駆動設計（DDD）やクリーンアーキテクチャを採用すると、レイヤー間の依存関係はきれいに整理され、テスタビリティが向上します。しかしその反面、構造体が20〜30個を超えたあたりから `main.go` の初期化コードが急速に肥大化し、「依存を1つ追加するたびに初期化順を並べ替える」「テスト差し替えでmainを毎回触る」といった壊れポイントが増えます。
 
-本記事では、DIライブラリである uber-go/fx（以下、fx）を活用し、Goの構造体定義を汚さずに、テスト容易性を保ったままDDDのレイヤー構造をきれいに分離・配線する実践的な手法を紹介します。記事中のコード断片はすべて以下のリポジトリからの抜粋です。
+本記事では、DIライブラリである uber-go/fx（以下、fx）を活用し、Goの構造体定義を汚さずに、テスト容易性を保ったままDDDのレイヤー構造をきれいに分離・配線する実践的な手法を紹介します。
+uber-go/fxライブラリの公式リポジトリはこちらです。
 
 <https://github.com/uber-go/fx>
 
+記事中のコード断片はすべて以下のリポジトリからの抜粋です。
 実装のサンプルコードは以下のリポジトリで公開しています（`internal/` 以下を参照）。
 
 <https://github.com/haru-256/blog-ddd-uber-fx>
@@ -110,7 +114,7 @@ func main() {
 
 具体的な実装解説に入る前に、本記事で扱うアプリケーションのレイヤー構造を共有します。uber-fx は、プロジェクトのディレクトリ構成に合わせて `fx.Module` を定義することで、真価を発揮します。
 
-本記事では、以下のような標準的なGoのDDDプロジェクト構成を想定しています。依存の向きは `Presentation` -> `Application` -> `Domain` <-  `Infrastructure`  のように、外側から内側へと一方向に流れます。`Infrastructure` 層は `Domain` 層で定義されたインターフェースを実装し、DIコンテナによって上位層に注入されます。
+本記事では、以下のようなTODOタスク管理の標準的なGoのDDDプロジェクト構成を想定しています。依存の向きは `Presentation` -> `Application` -> `Domain` <-  `Infrastructure`  のように、外側から内側へと一方向に流れます。`Infrastructure` 層は `Domain` 層で定義されたインターフェースを実装し、DIコンテナによって上位層に注入されます。
 
 ```sh
 internal/

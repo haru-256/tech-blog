@@ -320,7 +320,7 @@ var Module = fx.Module(
         // "構造体" を返すコンストラクタを、"インターフェース" のProviderとして登録
         fx.Annotate(
             db.NewUserRepositoryImpl,
-            fx.As(new(repositories.UserRepository)),
+            fx.As(new(domain.UserRepository)),
         ),
     ),
 )

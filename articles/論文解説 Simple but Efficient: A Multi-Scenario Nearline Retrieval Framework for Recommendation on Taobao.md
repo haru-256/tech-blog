@@ -11,13 +11,17 @@ published: false # zenn: 公開設定（falseにすると下書き）
 tags: ["recommendation", "retrieval", "candidate generation", "alibaba"] # paper: tags
 ---
 
+この記事は arXiv Advent Calendar 2025 の19日目の記事です。
 
+<https://qiita.com/advent-calendar/2025/arxiv>
 
 **記事の3行まとめ**
 
 * Taobaoが提案する新フレームワークMNRは、モデルの追加学習なしで推薦精度を大幅改善
 * 検索などの他シナリオで計算済みだが表示されなかった高品質なランキング結果を準リアルタイムで再利用
 * 世界最大級のECサイトで取引量（GMV）5%増を達成し、シンプルながら強力な効果を実証
+
+![notebooklm](https://storage.googleapis.com/zenn-user-upload/43dc30977a43-20251219.png)
 
 ## 1. はじめに
 
@@ -42,7 +46,7 @@ tags: ["recommendation", "retrieval", "candidate generation", "alibaba"] # paper
 図1に示すように、検索やカートなど、ユーザーの明確な意図が反映されるシナリオでは、裏側で数千件の商品がスコアリングされています。しかし、スマホの画面に表示されるのはそのごく一部です。  
 本論文は、ランキング上位でありながら画面枠の都合で表示されなかった商品に着目しました。これらを現在のシナリオ（トップページ）の候補として準リアルタイムに転用することで、軽量な候補生成フェーズでありながら、重厚なランキングフェーズと同等の精度を持つ候補生成を可能にしました。
 
-![figure1](../images/論文解説%20Simple%20but%20Efficient:%20A%20Multi-Scenario%20Nearline%20Retrieval%20Framework%20for%20Recommendation%20on%20Taobao/figure1.png)
+![figure1](https://storage.googleapis.com/zenn-user-upload/6a9ee73edf76-20251219.png)
 
 ### 3. 大規模商用環境での圧倒的な実証成果
 
@@ -101,30 +105,31 @@ MNRは、この**表示されなかったがスコアは高かったアイテム
 
 MNRの実装フローは以下の通りです（論文 Figure 2参照）。
 
-![figure2](../images/論文解説%20Simple%20but%20Efficient:%20A%20Multi-Scenario%20Nearline%20Retrieval%20Framework%20for%20Recommendation%20on%20Taobao/figure2.png)
+![figure2](https://storage.googleapis.com/zenn-user-upload/efef28fd4f82-20251219.png)
 
-1. ランキング結果の取得:  
+1. **ランキング結果の取得**:  
    ユーザーが任意のシナリオ $s$（例：検索結果）を訪れた時刻 $t$ において、ランキングモデルが出力したアイテムリストを $R_s^t = (e_1^t, e_2^t, ..., e_n^t)$ とします。ここで $n$ は数千のオーダーです。  
-2. 切り捨て（Truncation）による選抜:  
+
+2. **切り捨て（Truncation）による選抜**:  
    すべての結果を保存・転送するのはコストが高いため、上位のアイテムのみを残して切り捨て処理（Truncate）を行います。これにより、よりコンパクトなリスト $\mathcal{R}_s^t$ を生成します。
 
 $$
 \mathcal{R}_s^t = Truncate_s(R_s^t)
 $$
 
-3. ユーザーキューの維持:  
+3. **ユーザーキューの維持**:  
    ユーザーごとの過去のランキング結果を保持するため、シナリオ $s$ ごとにキュー$C_s$ を利用します。ここではFIFO戦略を採用し、最新の興味を維持します。
 
 $$
 C_s = Queue(\mathcal{R}_s^{t1}, \mathcal{R}_s^{t2}, ..., \mathcal{R}_s^{tl})
 $$
 
-4. 候補生成:  
+4. **候補生成**:  
    Apache Flinkを用いたストリーム処理基盤がこれらのログを準リアルタイムで処理し、後述するスコアリング関数に基づいて $C_s$ からさらに Top-K のアイテムを選定（$E_c$）し、オンラインDBに格納します。ターゲットシナリオ（トップページ）のリクエスト時には、ここから即座に候補を取得します。
 
 #### Streaming Candidate Scoring（スコアリング関数）
 
-集められた他シナリオの候補アイテムを、トップページの候補として採用すべきかどう判断するかについて、著者は以下の2つの要素を考慮したシンプルなスコアリング関数を定義しました。
+集められた他シナリオの候補アイテムを、どのようにしてトップページの候補商品に組み込むかを検討するため、著者は以下の2つの要素を考慮したシンプルなスコアリング関数を定義しました。
 
 1. **Original Ranking Score (Relevance):** 元のシナリオで何位だったか。上位であるほど質が高い。  
 2. **Access Time (Recency):** そのシナリオをいつ訪れたか。直近の行動ほど現在の興味に近い。
@@ -162,7 +167,7 @@ Taobaoの実際のトラフィックを用いた実験により、MNRの有効�
 一方で、性能が低下するケースも確認されました。店舗内ページでは、逆にCTCVRが-33.0%と大幅に悪化しました。  
 この理由は、店舗内ページはそもそも商品数が少なく、ランキング上位のほとんどが既にユーザーに表示されてしまっているためです。その結果、MNRが回収できたのは表示されなかった下位アイテムばかりとなり、質の低い候補を推薦することになってしまいました。この結果は、MNRが十分な候補数があり、かつ表示枠が限られている（未露出の良質アイテムが眠っている）シナリオで有効であることを示唆しています。
 
-![table1](../images/論文解説%20Simple%20but%20Efficient:%20A%20Multi-Scenario%20Nearline%20Retrieval%20Framework%20for%20Recommendation%20on%20Taobao/table1.png)
+![table1](https://storage.googleapis.com/zenn-user-upload/5fc9e158eab8-20251219.png)
 
 #### オンラインA/Bテスト (Online Performance)
 
@@ -174,15 +179,15 @@ MNRの構成要素の重要性についても検証が行われています。
 
 まず、Flinkを用いたオンライン処理を日次バッチのオフライン処理に切り替えたところ、性能が**36%低下**しました。ユーザーの興味は刻一刻と変わるため、鮮度が重要であることが分かります。
 
-![table2](../images/論文解説%20Simple%20but%20Efficient:%20A%20Multi-Scenario%20Nearline%20Retrieval%20Framework%20for%20Recommendation%20on%20Taobao/table2.png)
+![table2](https://storage.googleapis.com/zenn-user-upload/cbadd7158013-20251219.png)
 
 次に、提案したスコアリング関数（数式）を使わず、単純な**新しい順（FIFO）だけで候補を選んだ場合、性能は8.9%低下**しました。これはただ新しければ良いわけではなく、元のシナリオで高く評価されていた（質の高い）アイテムを選ぶロジックが必要であることを裏付けています。
 
-![table3](../images/論文解説%20Simple%20but%20Efficient:%20A%20Multi-Scenario%20Nearline%20Retrieval%20Framework%20for%20Recommendation%20on%20Taobao/table3.png)
+![table3](https://storage.googleapis.com/zenn-user-upload/f497f00df3e7-20251219.png)
 
 最後に、ランキング順位重視のパラメータ$\alpha$を極端に大きくし、時間の鮮度を軽視した設定にしたところ、CTCVRは**15.0%低下**しました。これは過去にどれだけ高評価だったかよりも今興味があるかのバランスを取ることが不可欠であることを示しています。
 
-![table4](../images/論文解説%20Simple%20but%20Efficient:%20A%20Multi-Scenario%20Nearline%20Retrieval%20Framework%20for%20Recommendation%20on%20Taobao/table4.png)
+![table4](https://storage.googleapis.com/zenn-user-upload/accb9365eeb2-20251219.png)
 
 ### 4.5. 結論 (Conclusion)
 
@@ -201,7 +206,7 @@ MNRは、複雑なモデル学習を一切行わず、システムアーキテ�
 これは技術的なブレイクスルーというよりも、高度な発想の転換による成果だと言えます。
 実装の観点でも、新たに巨大なモデルの学習パイプラインを構築・運用するコストに比べれば、ログのストリーム処理とフィルタリングの実装コストは低く抑えられます。既存資産を有効活用し、最小限の工数で確実な成果（GMV増）を生み出すこのアプローチは、非常に合理的な解決策です。
 
-エンジニアとして、このように最小の工数で本質的な価値を生み出す視点は、常に持ち続けていたいと感じさせられました。
+MLエンジニア/データサイエンティストとして、このように最小の工数で本質的な価値を生み出す視点は、常に持ち続けていたいと感じさせられました。
 
 ### コールドスタート問題への対処
 

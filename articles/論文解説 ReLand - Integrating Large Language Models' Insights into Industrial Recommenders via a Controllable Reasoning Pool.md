@@ -271,7 +271,7 @@ $$\boldsymbol{e}'_u = \alpha_u^{(1)} \boldsymbol{e}_u + \alpha_u^{(2)} \boldsymb
 
 AmazonのBeautyデータセットにおけるあるユーザーの事例が示された。
 この事例では、ベースモデル (SASRec) が「前回購入したのと同じブランド(Sibu)の別商品」という短絡的な推薦をして失敗した。
-これに対し、ReLandは、LLMが履歴から「低刺激 (hypoallergenic)」「まとめ買い (in bulk)」というユーザーの深い意図を言語化（Rationale）していたため、履歴に存在しない別ブランド (CoverGirl) の正解アイテムを正確に推薦することができ、高い解釈性とセマンティック理解を示した。
+これに対し、ReLandは、LLMが履歴から「低刺激 (hypoallergenic)」「まとめ買い (in bulk)」というユーザーの深い意図を言語化（Rationale）していた。そのため、履歴に存在しない別ブランド (CoverGirl) の正解アイテムを正確に推薦することができ、高い解釈性とセマンティック理解を示した。
 
 ![fig8](../images/論文解説%20ReLand%20-%20Integrating%20Large%20Language%20Models'%20Insights%20into%20Industrial%20Recommenders%20via%20a%20Controllable%20Reasoning%20Pool/fig8.png)
 

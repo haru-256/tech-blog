@@ -88,7 +88,7 @@ ReLand（Retrieval to effortlessly integrate Large language models' insights int
 
 #### Step 1: seed userの抽出（適応的サンプリング）
 
- 一般ユーザーに推論を再利用（使い回し）するため、大元となる推論プールには「高品質」かつ「多様な好みや行動パターンを網羅した代表的な知識」を蓄積する必要があります。
+一般ユーザーに推論を再利用（使い回し）するため、大元となる推論プールには「高品質」かつ「多様な好みや行動パターンを網羅した代表的な知識」を蓄積する必要があります。
 この条件を満たすseed user（全体の約10%）を抽出するため、Representativeness-aware SamplingとImportance-aware Samplingという2つのSampling手法を組み合わせます。
 
 ##### 1. クラスタリングによる多様性の確保 (Representativeness-aware Sampling)

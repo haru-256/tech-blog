@@ -267,7 +267,7 @@ $$\boldsymbol{e}'_u = \alpha_u^{(1)} \boldsymbol{e}_u + \alpha_u^{(2)} \boldsymb
 
 ![fig6](../images/論文解説%20ReLand%20-%20Integrating%20Large%20Language%20Models'%20Insights%20into%20Industrial%20Recommenders%20via%20a%20Controllable%20Reasoning%20Pool/fig6.png)
 
-##### RQ4: 定性分析と解釈性 (Potential Interpretability of Recommendation)
+##### 定性分析と解釈性 (Potential Interpretability of Recommendation)
 
 AmazonのBeautyデータセットにおけるあるユーザーの事例が示されました。
 この事例では、ベースモデル (SASRec) が「前回購入したのと同じブランド(Sibu)の別商品」という短絡的な推薦をして失敗しました。

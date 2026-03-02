@@ -11,7 +11,7 @@ published: false
 tags: ["RecSys24", "LLM", "推薦システム"]
 ---
 
-本記事では、2024年のRecSysで発表された論文 **ReLand: Retrieval to effortlessly integrate Large language models' insights into industrial recommenders** を解説します。
+本記事では、2024年のRecSysで発表された論文 **ReLand: Integrating Large Language Models' Insights into Industrial Recommenders via a Controllable Reasoning Pool** を解説します。
 本論文では、計算コストの課題を乗り越えて、LLMの高度な推論能力を、数億人規模の実際の推薦システムに組み込むための手法を提示しています。
 また、記事著者の考察も記載しています。
 

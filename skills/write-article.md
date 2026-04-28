@@ -56,5 +56,5 @@
 ## 5. 下書きから完成までの流れ
 
 1. `draft/` に下書き作成
-2. 自己レビュー（review-article スキル参照）
+2. 自己レビュー（[review-article](review-article.md) スキルを参照）
 3. 内容が固まったら `articles/` に移動

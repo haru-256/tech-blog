@@ -24,7 +24,7 @@
 
 記事のレビューを行う際は、以下のドキュメントを参照してください:
 
-- **[review-criteria](.gemini/skills/review-criteria.md)**: レビューの観点、記事種別ガイドライン、引用とクレジット
+- **[review-criteria](skills/review-criteria.md)**: レビューの観点、記事種別ガイドライン、引用とクレジット
 
 ## 3. レビュー対象外の項目
 
